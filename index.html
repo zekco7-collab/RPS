@@ -2,6 +2,21 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+/* 📱 모바일 기기는 앱(폰 전용) 버전으로 자동 이동.
+   PC 버전을 강제로 보려면 주소 뒤에 ?pc 를 붙이면 됩니다. */
+(function(){
+  try{
+    if (location.search.indexOf('pc') !== -1) return;          // ?pc → PC 버전 유지
+    var ua = navigator.userAgent || '';
+    var isMobileUA = /Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry|Mobile/i.test(ua);
+    var isTouchNarrow = (matchMedia && matchMedia('(pointer:coarse)').matches) && Math.min(screen.width, screen.height) <= 820;
+    if (isMobileUA || isTouchNarrow){
+      location.replace('rps-billiards_app.html');
+    }
+  }catch(e){}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>묵찌빠 당구</title>
 <style>

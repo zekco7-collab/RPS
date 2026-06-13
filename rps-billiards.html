@@ -341,7 +341,7 @@ const ctx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
 const CX = W/2, CY = H/2;
 
-const BALL_R = 16, BUMPER_R = 26;
+const BALL_R = 24, BUMPER_R = 30;
 const FRICTION = 0.992, STOP_V = 0.04;
 const MAX_PULL = 190, MAX_POW = 5.2;
 const ROUND_LIMIT = 20;
@@ -1176,6 +1176,17 @@ function tracePoly(){
   for (let i=1;i<verts.length;i++) ctx.lineTo(verts[i].x, verts[i].y);
   ctx.closePath();
 }
+// 이모지를 measureText로 직접 가운데 정렬 — iOS Safari가 textAlign='center'를
+// 이모지에 제대로 적용하지 않아 오른쪽으로 치우치는 문제를 우회한다.
+const ICON_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+function drawIcon(text, x, y, size, color){
+  ctx.font = size + 'px ' + ICON_FONT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  const w = ctx.measureText(text).width;
+  ctx.fillText(text, x - w/2, y);
+}
 function draw(){
   ctx.clearRect(0,0,W,H);
   if (phase === 'setup') return;
@@ -1263,10 +1274,7 @@ function draw(){
       ctx.lineWidth = 4.5;
       ctx.strokeStyle = `rgba(255,92,92,${pulse})`;
       ctx.stroke();
-      ctx.font = '17px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle = '#f2ede1';
-      ctx.fillText('💣', b.x, b.y+1);
+      drawIcon('💣', b.x, b.y+1, Math.round(BALL_R*1.05), '#f2ede1');
       continue;
     }
     // 본체
@@ -1278,18 +1286,13 @@ function draw(){
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = OWNER_COLOR[b.owner];
     ctx.stroke();
-    // 속성 아이콘 — 색 이모지가 단색으로 빠져도 보이도록 어두운 색 + 이모지 폰트 스택
-    ctx.font = '18px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle = '#15110b';
-    ctx.fillText(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1);
+    // 속성 아이콘 — measureText로 중앙 정렬, 단색으로 빠져도 보이도록 어두운 색
+    drawIcon(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1, Math.round(BALL_R*1.15), '#15110b');
     // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관
     if (b.isKing){
       ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+3.5,0,7);
       ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.font = '15px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
-      ctx.fillStyle = '#ffd166';
-      ctx.fillText('👑', b.x, b.y - BALL_R - 10);
+      drawIcon('👑', b.x, b.y - BALL_R - 12, Math.round(BALL_R*0.62), '#ffd166');
     }
     // 보호막
     if (isProtected(b)){

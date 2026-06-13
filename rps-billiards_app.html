@@ -68,6 +68,7 @@
   #stage{
     position:relative;line-height:0;
     width:fit-content;max-width:100vw;margin:auto;
+    overflow:hidden;border-radius:14px;          /* 핀치 줌 시 보드 영역 안에서만 확대 */
   }
   canvas{
     display:block;
@@ -310,7 +311,7 @@
     <button class="item-btn hidden" data-item="king" data-p="1">👑 속성 변경 (1회)</button>
   </div>
 </div>
-<div id="hint">내 공을 끌어당겨 조준하고, 놓으면 발사 · 멀리 당길수록 강하게 · 가위✌️&lt;바위✊&lt;보✋&lt;가위✌️</div>
+<div id="hint">한 손가락: 내 공을 끌어당겨 조준·발사 · 두 손가락: 맵 확대/축소 · 가위✌️&lt;바위✊&lt;보✋&lt;가위✌️</div>
 
 <!-- 시작 화면 -->
 <div class="overlay" id="setup">
@@ -419,7 +420,7 @@ const ctx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
 const CX = W/2, CY = H/2;
 
-const BALL_R = 16, BUMPER_R = 26;
+const BALL_R = 24, BUMPER_R = 30;
 const FRICTION = 0.992, STOP_V = 0.04;
 const MAX_PULL = 190, MAX_POW = 5.2;
 const ROUND_LIMIT = 20;
@@ -581,6 +582,7 @@ function resetMatchState(){
   setNetNames();
 }
 function newGame(){
+  resetView();
   setupTable();
   balls = [];
   // 플레이어 공 — 속성은 시작 선택 단계에서 결정 (후공 P2 공만 첫 턴 보호)
@@ -1194,12 +1196,51 @@ document.querySelectorAll('.pick-btn').forEach(btn =>
     else submitPick(attr);
   }));
 
-/* ---------- 입력 (마우스 + 터치) ---------- */
+/* ---------- 입력 (마우스 + 터치 + 두 손가락 핀치 줌) ---------- */
 function canvasPos(e){
   const r = cv.getBoundingClientRect();
   return { x:(e.clientX - r.left) * W/r.width, y:(e.clientY - r.top) * H/r.height };
 }
+
+/* 🔍 두 손가락으로 보드 확대/이동 (CSS transform). 한 손가락은 기존처럼 조준 */
+let view = { s:1, tx:0, ty:0 };
+const ptrs = new Map();
+let pinch = null;
+const MAX_ZOOM = 3;
+function applyView(){
+  cv.style.transformOrigin = '0 0';
+  cv.style.transform = 'translate(' + view.tx + 'px,' + view.ty + 'px) scale(' + view.s + ')';
+}
+function resetView(){ view = { s:1, tx:0, ty:0 }; applyView(); }
+function clampView(){
+  if (view.s < 1) view.s = 1;
+  if (view.s > MAX_ZOOM) view.s = MAX_ZOOM;
+  const bw = cv.offsetWidth, bh = cv.offsetHeight;
+  const minTx = bw*(1-view.s), minTy = bh*(1-view.s);
+  view.tx = Math.min(0, Math.max(minTx, view.tx));
+  view.ty = Math.min(0, Math.max(minTy, view.ty));
+}
+function ptrDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function ptrMid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+function startPinch(){
+  const pts = [...ptrs.values()];
+  const rect = cv.getBoundingClientRect();
+  const m = ptrMid(pts[0], pts[1]);
+  pinch = {
+    d0: ptrDist(pts[0], pts[1]) || 1,
+    s0: view.s,
+    originX: rect.left - view.tx,      // 변환 전 캔버스 좌상단(화면 좌표)
+    originY: rect.top  - view.ty,
+    fx: (m.x - rect.left) / view.s,    // 손가락 중점의 캔버스 기준 좌표
+    fy: (m.y - rect.top ) / view.s,
+  };
+  dragging = false;                    // 조준 취소
+}
+
 cv.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 2){ startPinch(); return; }
+  if (pinch) return;
   if (phase !== 'aim') return;
   if (net && cur() !== myIdx) return;          // 온라인: 내 턴에만 조작 가능
   const p = canvasPos(e);
@@ -1221,17 +1262,36 @@ cv.addEventListener('pointerdown', e => {
   const hit = mine.find(b => Math.hypot(b.x-p.x, b.y-p.y) < BALL_R*1.9);
   if (hit){
     selected = hit; dragging = true; dragX = p.x; dragY = p.y;
-    cv.setPointerCapture(e.pointerId);
+    try{ cv.setPointerCapture(e.pointerId); }catch(_){}
   } else {
     selected = mine.find(b => Math.hypot(b.x-p.x, b.y-p.y) < BALL_R*4) || selected;
   }
 });
 cv.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' && ptrs.has(e.pointerId)) ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (pinch && ptrs.size >= 2){
+    const pts = [...ptrs.values()];
+    const m = ptrMid(pts[0], pts[1]);
+    view.s = pinch.s0 * (ptrDist(pts[0], pts[1]) / pinch.d0);
+    if (view.s > MAX_ZOOM) view.s = MAX_ZOOM;
+    if (view.s < 1) view.s = 1;
+    view.tx = m.x - pinch.originX - pinch.fx * view.s;
+    view.ty = m.y - pinch.originY - pinch.fy * view.s;
+    clampView(); applyView();
+    return;
+  }
   if (!dragging) return;
   const p = canvasPos(e);
   dragX = p.x; dragY = p.y;
 });
+function endPointer(e){
+  if (e.pointerType === 'touch') ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+}
 cv.addEventListener('pointerup', e => {
+  const wasPinch = !!pinch;
+  endPointer(e);
+  if (wasPinch || ptrs.size >= 1){ dragging = false; return; }  // 핀치 직후·잔여 손가락은 발사 안 함
   if (!dragging || phase !== 'aim'){ dragging=false; return; }
   dragging = false;
   const dx = selected.x - dragX, dy = selected.y - dragY;
@@ -1246,6 +1306,7 @@ cv.addEventListener('pointerup', e => {
   phase = 'moving';
   setMsg(net ? '내 샷!' : OWNER_NAME[cur()] + ' 샷!');
 });
+cv.addEventListener('pointercancel', e => { endPointer(e); dragging = false; });
 
 /* ---------- 렌더링 ---------- */
 function tracePoly(){
@@ -1253,6 +1314,17 @@ function tracePoly(){
   ctx.moveTo(verts[0].x, verts[0].y);
   for (let i=1;i<verts.length;i++) ctx.lineTo(verts[i].x, verts[i].y);
   ctx.closePath();
+}
+// 이모지를 measureText로 직접 가운데 정렬 — iOS Safari가 textAlign='center'를
+// 이모지에 제대로 적용하지 않아 오른쪽으로 치우치는 문제를 우회한다.
+const ICON_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+function drawIcon(text, x, y, size, color){
+  ctx.font = size + 'px ' + ICON_FONT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  const w = ctx.measureText(text).width;
+  ctx.fillText(text, x - w/2, y);
 }
 function draw(){
   ctx.clearRect(0,0,W,H);
@@ -1341,10 +1413,7 @@ function draw(){
       ctx.lineWidth = 4.5;
       ctx.strokeStyle = `rgba(255,92,92,${pulse})`;
       ctx.stroke();
-      ctx.font = '17px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle = '#f2ede1';
-      ctx.fillText('💣', b.x, b.y+1);
+      drawIcon('💣', b.x, b.y+1, Math.round(BALL_R*1.05), '#f2ede1');
       continue;
     }
     // 본체
@@ -1356,18 +1425,13 @@ function draw(){
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = OWNER_COLOR[b.owner];
     ctx.stroke();
-    // 속성 아이콘 — 색 이모지가 단색으로 빠져도 보이도록 어두운 색 + 이모지 폰트 스택
-    ctx.font = '18px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle = '#15110b';
-    ctx.fillText(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1);
+    // 속성 아이콘 — measureText로 중앙 정렬, 단색으로 빠져도 보이도록 어두운 색
+    drawIcon(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1, Math.round(BALL_R*1.15), '#15110b');
     // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관
     if (b.isKing){
       ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+3.5,0,7);
       ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.font = '15px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
-      ctx.fillStyle = '#ffd166';
-      ctx.fillText('👑', b.x, b.y - BALL_R - 10);
+      drawIcon('👑', b.x, b.y - BALL_R - 12, Math.round(BALL_R*0.62), '#ffd166');
     }
     // 보호막
     if (isProtected(b)){
@@ -1670,6 +1734,7 @@ function teardownNet(){
   setNetNames();
 }
 function returnToSetup(){
+  resetView();
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');
   $id('setup').classList.remove('hidden');

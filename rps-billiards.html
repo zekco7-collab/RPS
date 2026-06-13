@@ -1263,8 +1263,9 @@ function draw(){
       ctx.lineWidth = 4.5;
       ctx.strokeStyle = `rgba(255,92,92,${pulse})`;
       ctx.stroke();
-      ctx.font = '15px serif';
+      ctx.font = '17px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
       ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle = '#f2ede1';
       ctx.fillText('💣', b.x, b.y+1);
       continue;
     }
@@ -1277,15 +1278,17 @@ function draw(){
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = OWNER_COLOR[b.owner];
     ctx.stroke();
-    // 속성 아이콘
-    ctx.font = '15px serif';
+    // 속성 아이콘 — 색 이모지가 단색으로 빠져도 보이도록 어두운 색 + 이모지 폰트 스택
+    ctx.font = '18px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle = '#15110b';
     ctx.fillText(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1);
     // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관
     if (b.isKing){
       ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+3.5,0,7);
       ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.font = '13px serif';
+      ctx.font = '15px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
+      ctx.fillStyle = '#ffd166';
       ctx.fillText('👑', b.x, b.y - BALL_R - 10);
     }
     // 보호막

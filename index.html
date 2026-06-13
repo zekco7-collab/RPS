@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>묵찌빠 당구</title>
+<style>
+  :root{
+    --felt:#1c4f42;
+    --felt-deep:#123830;
+    --wood:#5a3a22;
+    --wood-hi:#8a5c35;
+    --ink:#0e1513;
+    --paper:#f2ede1;
+    --p1:#4da3ff;
+    --p2:#ff8a3d;
+    --neutral:#a8b0b8;
+    --neon:#ffd166;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #1c2a26 0%, var(--ink) 60%);
+    color:var(--paper);
+    font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    overflow:hidden;height:100%;
+    user-select:none;-webkit-user-select:none;touch-action:none;
+  }
+  /* ---------- HUD ---------- */
+  #hud{
+    width:min(96vw,960px);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 4px 6px;gap:8px;
+  }
+  .player-card{
+    flex:1;display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:12px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);
+    transition:box-shadow .3s,border-color .3s;
+    min-width:0;
+  }
+  .player-card.right{flex-direction:row-reverse;text-align:right}
+  .player-card.active{border-color:currentColor;box-shadow:0 0 18px -4px currentColor}
+  #card1{color:var(--p1)} #card2{color:var(--p2)}
+  .dot{width:14px;height:14px;border-radius:50%;background:currentColor;flex:none;box-shadow:0 0 8px currentColor}
+  .pinfo{display:flex;flex-direction:column;min-width:0}
+  .pname{font-weight:800;font-size:14px;letter-spacing:.5px}
+  .plives{font-size:13px;letter-spacing:2px;color:var(--paper)}
+  .plives .lost{opacity:.18}
+  .pballs{font-size:11px;opacity:.7;color:var(--paper)}
+  #center-hud{flex:none;text-align:center;min-width:110px}
+  #round-label{font-size:11px;letter-spacing:3px;opacity:.6}
+  #round-num{font-size:20px;font-weight:900;color:var(--neon)}
+  #turn-msg{
+    margin:2px 0 4px;font-size:13px;font-weight:700;letter-spacing:.5px;
+    min-height:18px;text-align:center;
+  }
+  /* ---------- 캔버스 ---------- */
+  #stage{position:relative;line-height:0}
+  canvas{
+    width:min(96vw,960px);
+    max-height:calc(100vh - 150px);
+    aspect-ratio:960/700;
+    border-radius:18px;
+    cursor:crosshair;
+  }
+  /* ---------- 아이템 버튼 (좌: P1 / 우: P2) ---------- */
+  .item-stack{
+    position:absolute;bottom:12px;left:12px;z-index:5;
+    display:flex;flex-direction:column;gap:8px;align-items:flex-start;
+  }
+  .item-stack.right{left:auto;right:12px;align-items:flex-end}
+  .item-btn{
+    font:inherit;font-weight:800;font-size:13px;letter-spacing:.5px;
+    padding:10px 16px;border-radius:999px;border:none;cursor:pointer;
+    color:#0a1018;background:linear-gradient(180deg,#9ecbff,var(--p1));
+    box-shadow:0 0 20px -2px var(--p1);
+    animation:itempulse 1.1s infinite;
+  }
+  .item-stack.right .item-btn{
+    color:#1a0e04;
+    background:linear-gradient(180deg,#ffb98a,var(--p2));
+    box-shadow:0 0 20px -2px var(--p2);
+  }
+  .item-btn.arming{animation:none;transform:scale(1.06);filter:brightness(1.3)}
+  @keyframes itempulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  /* ---------- 오버레이 공통 ---------- */
+  .overlay{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,12,11,.82);backdrop-filter:blur(6px);
+    z-index:50;animation:fadein .25s ease;
+  }
+  @keyframes fadein{from{opacity:0}to{opacity:1}}
+  .panel{
+    width:min(92vw,560px);text-align:center;
+    background:linear-gradient(180deg,#1a2421,#121a18);
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:20px;padding:34px 26px 30px;
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.8);
+  }
+  .neon-title{
+    font-size:clamp(34px,7vw,52px);font-weight:900;letter-spacing:2px;
+    color:var(--neon);
+    text-shadow:0 0 6px rgba(255,209,102,.9),0 0 24px rgba(255,158,40,.55),0 0 60px rgba(255,120,0,.3);
+    animation:flicker 4s infinite;
+  }
+  @keyframes flicker{
+    0%,93%,95%,100%{opacity:1}
+    94%{opacity:.55}
+  }
+  .sub{margin-top:6px;font-size:13px;opacity:.65;letter-spacing:1px}
+  .maps{display:flex;gap:12px;justify-content:center;margin:26px 0 22px;flex-wrap:wrap}
+  .map-btn{
+    width:120px;padding:14px 8px 10px;border-radius:14px;cursor:pointer;
+    background:rgba(255,255,255,.045);border:2px solid rgba(255,255,255,.1);
+    color:var(--paper);transition:.18s;
+  }
+  .map-btn svg{display:block;margin:0 auto 8px}
+  .map-btn span{font-size:13px;font-weight:700}
+  .map-btn:hover{transform:translateY(-3px)}
+  .map-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);box-shadow:0 0 16px -4px var(--neon)}
+  /* ---------- 모드/네트워크 선택 ---------- */
+  .modes{display:flex;gap:12px;justify-content:center;margin:24px 0 2px;flex-wrap:wrap}
+  .mode-btn,.net-btn{
+    flex:1;max-width:210px;min-width:140px;padding:13px 10px;border-radius:14px;cursor:pointer;
+    background:rgba(255,255,255,.045);border:2px solid rgba(255,255,255,.1);
+    color:var(--paper);transition:.18s;
+  }
+  .mode-btn b,.net-btn b{display:block;font-size:15px}
+  .mode-btn small,.net-btn small{display:block;margin-top:3px;font-size:11px;opacity:.6}
+  .mode-btn:hover,.net-btn:hover{transform:translateY(-2px)}
+  .mode-btn.sel,.net-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);box-shadow:0 0 16px -4px var(--neon)}
+  /* ---------- 온라인 연결 패널 ---------- */
+  #net-panel{margin:12px auto 0;font-size:14px}
+  #room-code{color:var(--neon);font-size:21px;letter-spacing:5px;font-weight:900;vertical-align:middle}
+  #join-code{
+    width:130px;font:inherit;font-size:16px;letter-spacing:3px;text-align:center;text-transform:uppercase;
+    padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.06);color:var(--paper);outline:none;
+  }
+  #join-code:focus{border-color:var(--neon)}
+  #join-btn{
+    font:inherit;font-weight:800;font-size:14px;padding:10px 18px;margin-left:6px;
+    border-radius:10px;border:none;cursor:pointer;
+    color:#1a1206;background:linear-gradient(180deg,#ffe08a,var(--neon));
+  }
+  #net-status{margin-top:8px;font-size:12.5px;opacity:.8;min-height:16px}
+  .guest-lock #mode-row,.guest-lock .maps,.guest-lock #start-btn{opacity:.4;pointer-events:none}
+  .pick-row.waiting{opacity:.35;pointer-events:none}
+  .big-btn{
+    font:inherit;font-weight:900;font-size:17px;letter-spacing:1px;
+    padding:13px 44px;border-radius:999px;border:none;cursor:pointer;
+    color:#1a1206;background:linear-gradient(180deg,#ffe08a,var(--neon));
+    box-shadow:0 6px 24px -6px rgba(255,209,102,.6);
+    transition:.15s;
+  }
+  .big-btn:hover{transform:translateY(-2px)}
+  .rules{
+    text-align:left;font-size:12.5px;line-height:1.75;opacity:.75;
+    margin:0 auto 22px;max-width:420px;
+  }
+  /* ---------- 교착 선택 ---------- */
+  #pick-who{font-size:18px;font-weight:900;margin-bottom:4px}
+  #pick-warn{font-size:12.5px;opacity:.6;margin-bottom:18px}
+  #pick-timer{
+    font-size:42px;font-weight:900;color:var(--neon);margin-bottom:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  .pick-row{display:flex;gap:14px;justify-content:center}
+  .pick-btn{
+    font-size:38px;width:86px;height:86px;border-radius:18px;cursor:pointer;
+    background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.14);
+    transition:.12s;
+  }
+  .pick-btn:hover{transform:scale(1.08);border-color:var(--neon)}
+  #pick-sub{margin-top:16px;font-size:13px;opacity:.7;min-height:18px}
+  #pick-cancel{
+    margin-top:14px;font:inherit;font-size:13px;cursor:pointer;
+    background:none;border:1px solid rgba(255,255,255,.25);color:var(--paper);
+    padding:8px 22px;border-radius:999px;transition:.15s;
+  }
+  #pick-cancel:hover{border-color:var(--neon);color:var(--neon)}
+  /* 시작 속성 선택: 보드가 보이도록 반투명 + 하단 배치 */
+  #pick.peek{align-items:flex-end;background:rgba(8,12,11,.25);backdrop-filter:none}
+  #pick.peek .panel{margin-bottom:16px;padding:18px 20px 16px;width:min(92vw,460px)}
+  #pick.peek #pick-timer{display:none}
+  /* ---------- 종료 ---------- */
+  #end-title{font-size:clamp(30px,6vw,44px);font-weight:900;margin-bottom:8px}
+  #end-detail{font-size:14px;opacity:.7;margin-bottom:26px;line-height:1.7}
+  .hidden{display:none !important}
+  #hint{
+    font-size:11.5px;opacity:.45;padding:6px 0 10px;text-align:center;letter-spacing:.3px;
+  }
+  @media (max-height:600px){ #hint{display:none} }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="player-card" id="card1">
+    <div class="dot"></div>
+    <div class="pinfo">
+      <div class="pname">PLAYER 1</div>
+      <div class="plives" id="lives1">♥♥</div>
+      <div class="pballs" id="balls1">공 1개</div>
+    </div>
+  </div>
+  <div id="center-hud">
+    <div id="round-label">ROUND</div>
+    <div id="round-num">1 / 20</div>
+  </div>
+  <div class="player-card right" id="card2">
+    <div class="dot"></div>
+    <div class="pinfo">
+      <div class="pname">PLAYER 2</div>
+      <div class="plives" id="lives2">♥♥</div>
+      <div class="pballs" id="balls2">공 1개</div>
+    </div>
+  </div>
+</div>
+<div id="turn-msg"></div>
+<div id="stage">
+  <canvas id="cv" width="960" height="700"></canvas>
+  <div class="item-stack">
+    <button class="item-btn hidden" data-item="dbl"  data-p="0">⚡ 연속 공격 (1회)</button>
+    <button class="item-btn hidden" data-item="shd"  data-p="0">🛡️ 실드 (1회)</button>
+    <button class="item-btn hidden" data-item="king" data-p="0">👑 속성 변경 (1회)</button>
+  </div>
+  <div class="item-stack right">
+    <button class="item-btn hidden" data-item="dbl"  data-p="1">⚡ 연속 공격 (1회)</button>
+    <button class="item-btn hidden" data-item="shd"  data-p="1">🛡️ 실드 (1회)</button>
+    <button class="item-btn hidden" data-item="king" data-p="1">👑 속성 변경 (1회)</button>
+  </div>
+</div>
+<div id="hint">내 공을 끌어당겨 조준하고, 놓으면 발사 · 멀리 당길수록 강하게 · 가위✌️&lt;바위✊&lt;보✋&lt;가위✌️</div>
+
+<!-- 시작 화면 -->
+<div class="overlay" id="setup">
+  <div class="panel">
+    <div class="neon-title">묵찌빠 당구</div>
+    <div class="sub">가위바위보 상성으로 공을 빼앗는 턴제 당구</div>
+    <div class="modes" id="net-row">
+      <div class="net-btn sel" data-net="local"><b>📱 같은 기기</b><small>한 화면에서 번갈아 플레이</small></div>
+      <div class="net-btn" data-net="host"><b>🌐 방 만들기</b><small>코드를 만들어 상대에게 공유</small></div>
+      <div class="net-btn" data-net="join"><b>🔗 방 참가</b><small>상대의 코드로 접속</small></div>
+    </div>
+    <div id="net-panel" class="hidden">
+      <div id="net-host-ui" class="hidden">방 코드&nbsp; <b id="room-code">·····</b></div>
+      <div id="net-join-ui" class="hidden"><input id="join-code" maxlength="5" placeholder="코드"><button id="join-btn">접속</button></div>
+      <div id="net-status"></div>
+    </div>
+    <div class="modes" id="mode-row">
+      <div class="mode-btn sel" data-mode="normal"><b>일반 모드</b><small>♥2 · 마지막 공을 사수하세요</small></div>
+      <div class="mode-btn" data-mode="king"><b>👑 킹볼 모드</b><small>킹볼 ♥3 · 3번 피격당하면 패배</small></div>
+    </div>
+    <div class="maps">
+      <div class="map-btn sel" data-map="hex">
+        <svg width="54" height="54" viewBox="0 0 54 54"><polygon points="40.5,3.6 13.5,3.6 0,27 13.5,50.4 40.5,50.4 54,27" transform="scale(.92) translate(2.3 2.3)" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+        <span>육각</span>
+      </div>
+      <div class="map-btn" data-map="rect">
+        <svg width="54" height="54" viewBox="0 0 54 54"><rect x="3" y="13" width="48" height="28" rx="9" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+        <span>당구대</span>
+      </div>
+      <div class="map-btn" data-map="circle">
+        <svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+        <span>원형</span>
+      </div>
+    </div>
+    <div class="rules">
+      🎲 시작 전 가위바위보로 선공을 정합니다 — 3초 안에 못 고르면 기권패!<br>
+      ✊바위 &gt; ✌️가위 &gt; ✋보 &gt; ✊바위 — 이기는 공이 진 공을 자기 편으로 만듭니다.<br>
+      중립(회색) 공에게 지면 내 공이 중립이 됩니다.<br>
+      <b>일반 모드</b>: 마지막 공이 잡히면 ♥-1 후 리스폰, ♥ 2개를 모두 잃으면 패배!<br>
+      <b>👑 킹볼 모드</b>: 왕관 공은 빼앗기지 않는 대신 피격마다 ♥-1 (♥3개). 속성 변경 아이템 각자 1회!<br>
+      🔀 3라운드마다 중립 공의 속성이 다른 속성으로 랜덤하게 바뀝니다 (직전 라운드에 예고).<br>
+      🛟 5라운드마다 열세 측에 유리한 중립 공 2개와 💣 폭탄 공(부딪히면 폭발)이 난입합니다.<br>
+      ⚡ 연속 공격(열세일 때)과 🛡️ 실드는 5라운드 이후 각자 1회 쓸 수 있습니다.<br>
+      20라운드 안에 끝나지 않으면 공 개수 → 목숨 순으로 판정합니다.
+    </div>
+    <button class="big-btn" id="start-btn">게임 시작</button>
+  </div>
+</div>
+
+<!-- 교착 상태: 속성 재선택 -->
+<div class="overlay hidden" id="pick">
+  <div class="panel">
+    <div id="pick-who">PLAYER 1 — 속성 선택</div>
+    <div id="pick-warn">⚠️ 상대 플레이어는 화면을 보지 마세요!</div>
+    <div id="pick-timer">3</div>
+    <div class="pick-row">
+      <button class="pick-btn" data-attr="0">✊</button>
+      <button class="pick-btn" data-attr="1">✌️</button>
+      <button class="pick-btn" data-attr="2">✋</button>
+    </div>
+    <div id="pick-sub">시간 안에 고르지 않으면 무작위로 선택됩니다</div>
+    <button id="pick-cancel" class="hidden">취소</button>
+  </div>
+</div>
+
+<!-- 종료 화면 -->
+<div class="overlay hidden" id="end">
+  <div class="panel">
+    <div id="end-title">PLAYER 1 승리!</div>
+    <div id="end-detail"></div>
+    <button class="big-btn" id="restart-btn">다시 하기</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+'use strict';
+/* ============================================================
+   묵찌빠 당구 — 프로토타입
+   규칙 요약
+   - 1:1 핫시트 턴제, 시작: 각 1개 + 중립 3개
+   - 시작 전 가위바위보로 선공 결정 (3초 미선택 = 기권패, 무승부 = 재대결)
+   - 상성: 0✊바위 > 1✌️가위 > 2✋보 > 0✊바위
+   - 충돌 시 진 공이 이긴 공의 소유가 됨 (속성 유지, 색만 변경)
+   - 비기면 물리적으로 튕기기만 함 / 연쇄 충돌 허용
+   - 첫 라운드 보호 + 변환 직후 1턴 보호
+   - 마지막 공 피격 → ♥-1 후 리스폰 (♥3, 0이면 패배)
+   - 전 공 속성 동일 → 3초 동시(순차 입력) 가위바위보 재선택
+   - 20라운드 종료 → 공 개수 > 목숨 > 서든데스
+   - 후공 보정: P2 첫 샷 파워 +20%
+   - 3라운드(6샷)마다 중립 공 속성이 나머지 2개 중 랜덤으로 변경 (직전 라운드에 예고)
+   - 5라운드(10샷)마다 열세 측에 유리한 중립 공 2개 증원
+     + 필드에 폭탄이 없으면 💣 폭탄 공 1개 난입 (부딪히면 폭발해 주변을 밀쳐냄)
+   - 5라운드 이후 열세 측은 ⚡연속 공격(같은 턴 2연속 샷)을 각자 1회 사용 가능
+   - 5라운드 이후 🛡️실드(내 공 하나를 상대 턴까지 보호)를 각자 1회 사용 가능
+   - 👑 킹볼 모드: 각자 킹볼(♥3) — 빼앗기지 않는 대신 피격마다 ♥-1, 0이면 패배
+     킹볼 속성 변경 아이템 각자 1회 (언제든 자기 턴에 사용)
+============================================================ */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const CX = W/2, CY = H/2;
+
+const BALL_R = 16, BUMPER_R = 26;
+const FRICTION = 0.992, STOP_V = 0.04;
+const MAX_PULL = 190, MAX_POW = 5.2;
+const ROUND_LIMIT = 20;
+const LIVES_MAX = 2;
+const NEUTRAL_COUNT = 10;
+const REINFORCE_EVERY = 10;   // 10샷(=5라운드)마다 중립 공 증원
+const NEUTRAL_SHUFFLE_EVERY = 6; // 6샷(=3라운드)마다 중립 공 속성 랜덤 변경
+const ITEM_UNLOCK_SHOT = 10;  // ⚡연속 공격·🛡️실드는 5라운드 이후부터 사용 가능
+const KING_LIVES = 3;         // 👑 킹볼 모드: 킹볼 목숨
+const BLAST_R = 150, BLAST_POW = 6; // 💣 폭발 반경·세기
+const SPAWN_CLEAR = 130;   // 시작 지점 주변 중립공 금지 반경
+
+const ATTR_ICON = ['✊','✌️','✋'];
+const ATTR_NAME = ['바위','가위','보'];
+const OWNER_COLOR = ['#4da3ff','#ff8a3d','#a8b0b8'];
+const OWNER_NAME  = ['PLAYER 1','PLAYER 2','중립'];
+const NEUTRAL = 2;
+
+// a가 b를 이기는가 (0>1>2>0)
+const beats = (a,b) => (b - a + 3) % 3 === 1;
+
+/* ---------- 맵 정의 ---------- */
+function poly(n, R, rot){
+  const v = [];
+  for (let i=0;i<n;i++){
+    const a = rot + i * Math.PI*2/n;
+    v.push({x:CX + Math.cos(a)*R, y:CY + Math.sin(a)*R});
+  }
+  return v;
+}
+// 실제 당구대 모양 — 모서리를 호로 근사한 둥근 직사각형 폴리곤
+function roundRectPoly(hw, hh, cr, seg){
+  const v = [];
+  const corners = [
+    {cx:CX+hw-cr, cy:CY+hh-cr, a0:0},
+    {cx:CX-hw+cr, cy:CY+hh-cr, a0:Math.PI/2},
+    {cx:CX-hw+cr, cy:CY-hh+cr, a0:Math.PI},
+    {cx:CX+hw-cr, cy:CY-hh+cr, a0:Math.PI*1.5},
+  ];
+  for (const c of corners){
+    for (let i=0;i<=seg;i++){
+      const a = c.a0 + i/seg * Math.PI/2;
+      v.push({x:c.cx + Math.cos(a)*cr, y:c.cy + Math.sin(a)*cr});
+    }
+  }
+  return v;
+}
+const MAPS = {
+  hex   : { verts: () => poly(6, 370, 0),
+            bumpers:[{x:0,y:0}], spawns:[{x:-250,y:0},{x:250,y:0}] },
+  rect  : { verts: () => roundRectPoly(440, 220, 56, 7),   // 캐롬 당구대(포켓 없음)
+            bumpers:[], spawns:[{x:-300,y:0},{x:300,y:0}] },
+  circle: { verts: () => poly(64, 320, 0),
+            bumpers:[{x:0,y:0}], spawns:[{x:-205,y:0},{x:205,y:0}] },
+};
+
+/* ---------- 기하 도우미 ---------- */
+function pointInPoly(x, y, verts){
+  let inside = false;
+  for (let i=0, j=verts.length-1; i<verts.length; j=i++){
+    const xi=verts[i].x, yi=verts[i].y, xj=verts[j].x, yj=verts[j].y;
+    if (((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+function closestOnSeg(px,py, ax,ay, bx,by){
+  const dx=bx-ax, dy=by-ay;
+  const len2 = dx*dx+dy*dy;
+  let t = len2 ? ((px-ax)*dx + (py-ay)*dy)/len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return {x:ax+dx*t, y:ay+dy*t};
+}
+function wallClearance(x,y, verts){
+  let m = Infinity;
+  for (let i=0;i<verts.length;i++){
+    const a=verts[i], b=verts[(i+1)%verts.length];
+    const c = closestOnSeg(x,y,a.x,a.y,b.x,b.y);
+    m = Math.min(m, Math.hypot(x-c.x, y-c.y));
+  }
+  return m;
+}
+// 폴리곤 안쪽 + 벽에서 margin 이상 떨어진 위치로 보정
+function ensureInside(x, y, verts, margin){
+  let px=x, py=y;
+  for (let k=0;k<60;k++){
+    if (pointInPoly(px,py,verts) && wallClearance(px,py,verts) > margin) return {x:px,y:py};
+    px += (CX-px)*0.06; py += (CY-py)*0.06;
+  }
+  return {x:CX, y:CY};
+}
+
+/* ---------- 게임 상태 ---------- */
+let mapKey = 'hex';
+let verts = [], bumpers = [], spawns = [];
+let balls = [];          // {x,y,vx,vy,owner,attr,protUntil}
+let particles = [];
+let shotCount = 0;       // 지금까지 발사된 샷 수 (짝수=P1 차례)
+let lives = [LIVES_MAX, LIVES_MAX];
+let phase = 'setup';     // setup | aim | moving | pick | over
+let suddenDeath = false;
+let selected = null;     // 조준 중인 내 공
+let dragging = false, dragX = 0, dragY = 0;
+let pairCool = new Map();// 같은 쌍 중복 변환 방지
+let gameMode = 'normal'; // 'normal' | 'king'
+let kingLives = [KING_LIVES, KING_LIVES];
+let turnFlip = 0;        // ⚡연속 공격으로 손번이 뒤집힌 횟수
+let doubleArmed = false; // 이번 샷이 끝나도 턴을 넘기지 않음
+let shieldArming = -1;   // 🛡️ 실드 대상 선택 중인 플레이어 (-1: 없음)
+let itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
+let firstPlayer = 0;     // 선공 — 시작 전 가위바위보로 결정
+
+/* ---------- 온라인 상태 ---------- */
+let netMode = 'local';   // 시작 화면 선택: local | host | join
+let net = null;          // 연결 후 역할: null | 'host' | 'guest'
+let myIdx = 0;           // 온라인에서 내 플레이어 번호 (host=0, guest=1)
+let peer = null, conn = null;
+let remoteShotActive = false; // 상대 샷을 내 화면에서 시뮬레이션 중 (동기화 대기)
+let pendingSync = null;  // 내 시뮬이 끝나기 전에 도착한 동기화 스냅샷
+let netRemotePick = null;// 픽 화면 진입 전에 도착한 상대의 가위바위보 선택
+let applyingSync = false;
+let lastWin = null;      // 마지막 승부 결과 {winner, detail}
+
+const cur = () => (shotCount + turnFlip + firstPlayer) % 2;
+const countBalls = o => balls.reduce((n,b)=> n + (b.owner===o), 0);
+const isProtected = b => shotCount < b.protUntil;
+
+/* ---------- 사운드 (WebAudio 간단 효과음) ---------- */
+let AC = null;
+function blip(freq, vol, dur){
+  try{
+    if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.frequency.value = freq; o.type = 'triangle';
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + dur);
+  }catch(e){}
+}
+
+/* ---------- 초기화 ---------- */
+function setupTable(){
+  const m = MAPS[mapKey];
+  verts = m.verts();
+  bumpers = m.bumpers.map(b => {
+    const p = ensureInside(CX+b.x, CY+b.y, verts, BUMPER_R+30);
+    return {x:p.x, y:p.y, r:BUMPER_R};
+  });
+  spawns = m.spawns.map(s => ensureInside(CX+s.x, CY+s.y, verts, BALL_R+26));
+}
+function resetMatchState(){
+  shotCount = 0; lives = [LIVES_MAX, LIVES_MAX];
+  kingLives = [KING_LIVES, KING_LIVES];
+  suddenDeath = false; particles = []; pairCool.clear();
+  turnFlip = 0; doubleArmed = false; shieldArming = -1; firstPlayer = 0;
+  itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
+  selected = null; lastWin = null;
+  remoteShotActive = false; pendingSync = null; netRemotePick = null;
+  setNetNames();
+}
+function newGame(){
+  setupTable();
+  balls = [];
+  // 플레이어 공 — 속성은 시작 선택 단계에서 결정 (후공 P2 공만 첫 턴 보호)
+  // 킹볼 모드에서는 이 공이 곧 킹볼
+  for (let p=0;p<2;p++){
+    balls.push({x:spawns[p].x, y:spawns[p].y, vx:0, vy:0,
+                owner:p, attr:-1, protUntil: p===1 ? 1 : 0,
+                isKing: gameMode === 'king'});
+  }
+  // 중립 공 속성 풀 — 세 종류가 최소 1개씩은 반드시 포함
+  const pool = [0,1,2];
+  while (pool.length < NEUTRAL_COUNT) pool.push(Math.floor(Math.random()*3));
+  for (let i=pool.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]] = [pool[j],pool[i]];
+  }
+  let ni = 0;
+  // 중립 공 — 중앙 범퍼 주변 두 겹으로 배치
+  const c = ensureInside(CX, CY-10, verts, 120);
+  const inner = 4, outer = NEUTRAL_COUNT - inner;
+  for (let i=0;i<inner;i++){
+    const a = Math.PI/2 + i * Math.PI*2/inner;
+    const p = ensureInside(c.x + Math.cos(a)*85, c.y + Math.sin(a)*85, verts, BALL_R+22);
+    balls.push({x:p.x, y:p.y, vx:0, vy:0,
+                owner:NEUTRAL, attr:pool[ni++], protUntil:0});
+  }
+  for (let i=0;i<outer;i++){
+    const a = Math.PI/2 + Math.PI/outer + i * Math.PI*2/outer;
+    const p = ensureInside(c.x + Math.cos(a)*165, c.y + Math.sin(a)*165, verts, BALL_R+22);
+    balls.push({x:p.x, y:p.y, vx:0, vy:0,
+                owner:NEUTRAL, attr:pool[ni++], protUntil:0});
+  }
+  // 겹침 풀기 (공-공, 공-범퍼)
+  for (let k=0;k<120;k++){
+    let moved = false;
+    for (let i=0;i<balls.length;i++) for (let j=i+1;j<balls.length;j++){
+      const a=balls[i], b=balls[j];
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01, min=BALL_R*2+6;
+      if (d < min){
+        const push=(min-d)/2, nx=dx/d, ny=dy/d;
+        a.x-=nx*push; a.y-=ny*push; b.x+=nx*push; b.y+=ny*push;
+        moved = true;
+      }
+    }
+    for (const b of balls) for (const u of bumpers){
+      const dx=b.x-u.x, dy=b.y-u.y, d=Math.hypot(dx,dy)||0.01, min=BALL_R+u.r+6;
+      if (d < min){ b.x=u.x+dx/d*min; b.y=u.y+dy/d*min; moved = true; }
+    }
+    // 중립공은 양 플레이어 시작 지점에서 일정 거리 이상 떨어뜨리기
+    for (const b of balls){
+      if (b.owner !== NEUTRAL) continue;
+      for (const s of spawns){
+        const dx=b.x-s.x, dy=b.y-s.y, d=Math.hypot(dx,dy)||0.01;
+        if (d < SPAWN_CLEAR){ b.x=s.x+dx/d*SPAWN_CLEAR; b.y=s.y+dy/d*SPAWN_CLEAR; moved = true; }
+      }
+    }
+    for (const b of balls){
+      const p = ensureInside(b.x, b.y, verts, BALL_R+8);
+      if (p.x!==b.x || p.y!==b.y){ b.x=p.x; b.y=p.y; moved = true; }
+    }
+    if (!moved) break;
+  }
+  resetMatchState();
+  setMsg('✊✌️✋ 가위바위보로 선공을 정합니다!');
+  updateHud();
+  startPick('order');
+}
+
+/* ---------- HUD ---------- */
+function updateHud(){
+  const maxH = gameMode === 'king' ? KING_LIVES : LIVES_MAX;
+  const lv   = gameMode === 'king' ? kingLives : lives;
+  for (let p=0;p<2;p++){
+    const el = document.getElementById('lives'+(p+1));
+    el.innerHTML = '♥'.repeat(maxH).split('').map((h,i)=> i<lv[p]?h:'<span class="lost">♥</span>').join('');
+    document.getElementById('balls'+(p+1)).textContent = '공 ' + countBalls(p) + '개';
+  }
+  const round = Math.min(ROUND_LIMIT, Math.floor(shotCount/2)+1);
+  document.getElementById('round-num').textContent =
+    suddenDeath ? 'SUDDEN DEATH' : round + ' / ' + ROUND_LIMIT;
+  document.getElementById('card1').classList.toggle('active', phase!=='over' && cur()===0);
+  document.getElementById('card2').classList.toggle('active', phase!=='over' && cur()===1);
+}
+function setMsg(text){
+  const el = document.getElementById('turn-msg');
+  if (text !== undefined){ el.textContent = text; return; }
+  const p = cur();
+  const bonus = shotCount===1 ? ' <span style="opacity:.6">(후공 보너스: 파워 +20%)</span>' : '';
+  if (net){
+    el.innerHTML = p === myIdx
+      ? `<span style="color:${OWNER_COLOR[p]}">내 차례</span> — 공을 당겨서 발사하세요${bonus}`
+      : `<span style="color:${OWNER_COLOR[p]}">상대 차례</span> — 기다려 주세요${bonus}`;
+    return;
+  }
+  el.innerHTML = `<span style="color:${OWNER_COLOR[p]}">${OWNER_NAME[p]}</span> 차례 — 내 공을 당겨서 발사하세요` + bonus;
+}
+
+/* ---------- 물리 ---------- */
+function physicsStep(){
+  for (const b of balls){
+    b.x += b.vx; b.y += b.vy;
+    b.vx *= FRICTION; b.vy *= FRICTION;
+    if (Math.hypot(b.vx,b.vy) < STOP_V){ b.vx = 0; b.vy = 0; }
+  }
+  // 벽 (폴리곤 변마다 원-선분 충돌)
+  for (const b of balls){
+    for (let i=0;i<verts.length;i++){
+      const a=verts[i], c=verts[(i+1)%verts.length];
+      const q = closestOnSeg(b.x,b.y,a.x,a.y,c.x,c.y);
+      let dx=b.x-q.x, dy=b.y-q.y;
+      const d = Math.hypot(dx,dy);
+      if (d < BALL_R && d > 0.0001){
+        // 법선 방향이 폴리곤 안쪽을 향하도록
+        const tx = b.x + dx/d*0.5, ty = b.y + dy/d*0.5;
+        const s = pointInPoly(tx,ty,verts) ? 1 : -1;
+        const nx = dx/d*s, ny = dy/d*s;
+        b.x = q.x + nx*BALL_R; b.y = q.y + ny*BALL_R;
+        const vn = b.vx*nx + b.vy*ny;
+        if (vn < 0){
+          b.vx -= 2*vn*nx; b.vy -= 2*vn*ny;
+          b.vx *= 0.9; b.vy *= 0.9;
+          if (Math.abs(vn) > 1.2) blip(180, .05, .08);
+        }
+      }
+    }
+  }
+  // 범퍼
+  for (const b of balls){
+    for (const u of bumpers){
+      const dx=b.x-u.x, dy=b.y-u.y, d=Math.hypot(dx,dy), min=BALL_R+u.r;
+      if (d < min && d > 0.0001){
+        const nx=dx/d, ny=dy/d;
+        b.x = u.x + nx*min; b.y = u.y + ny*min;
+        const vn = b.vx*nx + b.vy*ny;
+        if (vn < 0){
+          b.vx -= 2.3*vn*nx; b.vy -= 2.3*vn*ny;  // 살짝 튕겨주는 범퍼
+          blip(520, .07, .1);
+          spawnParticles(b.x-nx*BALL_R, b.y-ny*BALL_R, '#ffd166', 6);
+        }
+      }
+    }
+  }
+  // 공-공
+  const exploding = new Set();
+  for (let i=0;i<balls.length;i++) for (let j=i+1;j<balls.length;j++){
+    const a=balls[i], b=balls[j];
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy), min=BALL_R*2;
+    if (d < min && d > 0.0001){
+      const nx=dx/d, ny=dy/d, push=(min-d)/2;
+      a.x -= nx*push; a.y -= ny*push;
+      b.x += nx*push; b.y += ny*push;
+      const rvn = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+      if (rvn < 0){
+        a.vx += rvn*nx; a.vy += rvn*ny;
+        b.vx -= rvn*nx; b.vy -= rvn*ny;
+        const key = i+'-'+j;
+        if (!pairCool.has(key)){
+          pairCool.set(key, 12);
+          if (a.bomb || b.bomb){            // 💣 폭탄과 충돌 → 폭발 예약
+            if (a.bomb) exploding.add(a);
+            if (b.bomb) exploding.add(b);
+          } else {
+            blip(300 + Math.random()*100, .08, .07);
+            resolveBattle(a, b, Math.abs(rvn));
+          }
+        }
+      }
+    }
+  }
+  if (exploding.size){
+    for (const bomb of exploding) explode(bomb);
+    balls = balls.filter(b => !exploding.has(b));
+    pairCool.clear();                       // 인덱스 기반 키라 폭탄 제거 후 초기화
+  }
+  for (const [k,v] of pairCool) v<=1 ? pairCool.delete(k) : pairCool.set(k, v-1);
+  for (const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vx*=.94; p.vy*=.94; p.life--; }
+  particles = particles.filter(p=>p.life>0);
+}
+
+/* ---------- 가위바위보 변환 ---------- */
+function resolveBattle(a, b, impact){
+  if (phase === 'over') return;
+  if (a.bomb || b.bomb) return;                  // 폭탄은 상성 없음 (충돌 시 폭발)
+  if (a.owner === b.owner) return;
+  if (a.attr === b.attr) return;                 // 비김 → 튕기기만
+  const [win, lose] = beats(a.attr, b.attr) ? [a,b] : [b,a];
+  if (isProtected(lose)){
+    spawnParticles(lose.x, lose.y, '#ffffff', 8); // 보호막 반짝
+    return;
+  }
+  const newOwner = win.owner;
+  if (lose.owner === newOwner) return;
+
+  // 👑 킹볼 피격 — 빼앗기지 않고 목숨 차감 후 리스폰
+  if (lose.isKing){
+    const p = lose.owner;
+    kingLives[p]--;
+    blip(120, .15, .35);
+    spawnParticles(lose.x, lose.y, '#ff4d4d', 26);
+    setMsg(`👑 ${OWNER_NAME[p]} 킹볼 피격! 남은 목숨 ${Math.max(0, kingLives[p])}`);
+    if (kingLives[p] <= 0){ gameOver(1-p, `${OWNER_NAME[p]}의 킹볼이 함락되었습니다`); return; }
+    if (suddenDeath){ gameOver(1-p, '서든데스 — 킹볼 피격으로 승부 결정!'); return; }
+    const s = spawns[p];
+    lose.x = s.x; lose.y = s.y; lose.vx = 0; lose.vy = 0;
+    lose.attr = Math.floor(Math.random()*3);
+    lose.protUntil = shotCount + 3;              // 리스폰 보호
+    for (const o of balls){
+      if (o !== lose && Math.hypot(o.x-lose.x, o.y-lose.y) < BALL_R*2.2){
+        lose.y += BALL_R*2.4 * (lose.y < CY ? 1 : -1);
+      }
+    }
+    updateHud();
+    return;
+  }
+
+  // 마지막 공 → 목숨 차감 + 리스폰
+  if (lose.owner !== NEUTRAL && countBalls(lose.owner) === 1){
+    const p = lose.owner;
+    lives[p]--;
+    blip(120, .15, .35);
+    spawnParticles(lose.x, lose.y, '#ff4d4d', 26);
+    setMsg(`💔 ${OWNER_NAME[p]}의 마지막 공 피격! 목숨 -1`);
+    if (lives[p] <= 0){ gameOver(1-p, `${OWNER_NAME[p]}의 목숨이 모두 소진되었습니다`); return; }
+    if (suddenDeath){ gameOver(1-p, '서든데스 — 마지막 공 피격으로 승부 결정!'); return; }
+    const s = spawns[p];
+    lose.x = s.x; lose.y = s.y; lose.vx = 0; lose.vy = 0;
+    lose.attr = Math.floor(Math.random()*3);
+    lose.protUntil = shotCount + 3;              // 리스폰 보호
+    // 리스폰 지점 겹침 방지
+    for (const o of balls){
+      if (o !== lose && Math.hypot(o.x-lose.x, o.y-lose.y) < BALL_R*2.2){
+        lose.y += BALL_R*2.4 * (lose.y < CY ? 1 : -1);
+      }
+    }
+    updateHud();
+    return;
+  }
+  // 일반 변환 — 색만 변경 (보호 없음, 바로 다시 뺏길 수 있음)
+  const prev = lose.owner;
+  lose.owner = newOwner;
+  blip(newOwner===NEUTRAL ? 200 : 660, .12, .2);
+  spawnParticles(lose.x, lose.y, OWNER_COLOR[newOwner], 18);
+  updateHud();
+  if (suddenDeath){
+    if (newOwner !== NEUTRAL) gameOver(newOwner, '서든데스 — 첫 변환으로 승부 결정!');
+    else gameOver(1-prev, '서든데스 — 중립에게 공을 잃어 승부 결정!');
+  }
+}
+
+function spawnParticles(x,y,color,n){
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = 1+Math.random()*3.5;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:18+Math.random()*14,color});
+  }
+}
+
+/* ---------- 💣 폭탄 폭발 — 주변 공을 방사형으로 밀쳐냄 ---------- */
+function explode(bomb){
+  for (const b of balls){
+    if (b === bomb || b.bomb) continue;
+    const dx=b.x-bomb.x, dy=b.y-bomb.y, d=Math.hypot(dx,dy)||0.01;
+    if (d > BLAST_R) continue;
+    const f = BLAST_POW * (1 - d/BLAST_R) + 2;   // 가까울수록 강하게
+    b.vx += dx/d*f; b.vy += dy/d*f;
+  }
+  spawnParticles(bomb.x, bomb.y, '#ff6b3d', 40);
+  spawnParticles(bomb.x, bomb.y, '#ffd166', 22);
+  blip(60, .25, .5); blip(150, .18, .3);
+  setMsg('💣 폭탄 폭발!');
+}
+
+/* ---------- 턴 진행 ---------- */
+function allStopped(){ return balls.every(b => b.vx===0 && b.vy===0); }
+
+function endShot(){
+  shotCount++;
+  let extraShot = false;
+  if (doubleArmed){ doubleArmed = false; turnFlip++; extraShot = true; } // 같은 플레이어가 한 번 더
+  updateHud();
+  if (phase === 'over') return;
+
+  // 한쪽이 모든 공 소유(폭탄 제외) → 즉시 승리
+  for (let p=0;p<2;p++){
+    if (balls.every(b => b.bomb || b.owner === p)){ gameOver(p, '모든 공을 차지했습니다!'); return; }
+  }
+  // 3라운드(6샷)마다 중립 공 속성 랜덤 변경 — 증원보다 먼저 (새 증원 공은 그대로 유지)
+  let shuffleMsg = null;
+  if (!suddenDeath && shotCount % NEUTRAL_SHUFFLE_EVERY === 0){
+    shuffleMsg = shuffleNeutrals();
+  }
+  // 5라운드(10샷)마다 열세 측에 유리한 중립 공 증원
+  let reinforceMsg = null;
+  if (!suddenDeath && shotCount % REINFORCE_EVERY === 0 && shotCount < ROUND_LIMIT*2){
+    reinforceMsg = spawnReinforcements();
+  }
+  // 교착: 모든 공의 속성이 동일 (폭탄 제외)
+  const live = balls.filter(b => !b.bomb);
+  if (live.every(b => b.attr === live[0].attr)){ startPick('deadlock'); if (net) sendSync(); return; }
+  // 라운드 제한 → 판정
+  if (!suddenDeath && shotCount >= ROUND_LIMIT*2){ judge(); if (phase==='over') return; }
+
+  beginTurn();
+  // 셔플 직전 라운드(남은 샷 2 이하)에는 예고 표시
+  const left = NEUTRAL_SHUFFLE_EVERY - shotCount % NEUTRAL_SHUFFLE_EVERY;
+  const warnMsg = (!suddenDeath && left <= 2 && balls.some(b => b.owner === NEUTRAL && !b.bomb))
+    ? '🔀 이번 라운드가 끝나면 중립 공 속성이 랜덤으로 바뀝니다!' : null;
+  const notices = [];
+  if (extraShot) notices.push(`⚡ ${OWNER_NAME[cur()]} 연속 공격 — 한 번 더 쏘세요!`);
+  if (shuffleMsg) notices.push(shuffleMsg);
+  if (reinforceMsg) notices.push(reinforceMsg);
+  if (!notices.length && warnMsg) notices.push(warnMsg);
+  if (notices.length) setMsg(notices.join(' '));
+  if (net) sendSync(notices.join(' '));
+}
+function beginTurn(){
+  phase = 'aim';
+  shieldArming = -1;
+  selected = balls.find(b => b.owner === cur());
+  setMsg();
+  updateHud();
+}
+function judge(){
+  const c0 = countBalls(0), c1 = countBalls(1);
+  if (c0 !== c1){ gameOver(c0>c1?0:1, `판정승 — 공 개수 ${Math.max(c0,c1)} : ${Math.min(c0,c1)}`); return; }
+  const lv = gameMode === 'king' ? kingLives : lives;
+  if (lv[0] !== lv[1]){ gameOver(lv[0]>lv[1]?0:1, `판정승 — 남은 목숨 ${Math.max(...lv)} : ${Math.min(...lv)}`); return; }
+  suddenDeath = true;
+  setMsg('⚡ 서든데스! 다음 변환이 승부를 결정합니다');
+  updateHud();
+}
+function gameOver(winner, detail){
+  if (phase === 'over') return;
+  if (net && remoteShotActive) return;   // 상대 샷 시뮬 중에는 상대의 동기화가 판정
+  phase = 'over';
+  lastWin = {winner, detail};
+  updateHud();
+  const t = document.getElementById('end-title');
+  t.textContent = OWNER_NAME[winner] + (net ? (winner === myIdx ? ' (나) 승리!' : ' (상대) 승리!') : ' 승리!');
+  t.style.color = OWNER_COLOR[winner];
+  document.getElementById('end-detail').textContent = detail;
+  setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 700);
+  if (net && !applyingSync) sendSync();
+}
+
+/* ---------- 열세 판정 / 중립 공 증원 / 아이템 ---------- */
+function disadvantaged(p){
+  const my = countBalls(p), op = countBalls(1-p);
+  const lv = gameMode === 'king' ? kingLives : lives;
+  return my < op || (my === op && lv[p] < lv[1-p]);
+}
+// 벽·범퍼·기존 공과 겹치지 않는 빈 자리 찾기
+function findFreeSpot(){
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  for (const v of verts){
+    minX=Math.min(minX,v.x); maxX=Math.max(maxX,v.x);
+    minY=Math.min(minY,v.y); maxY=Math.max(maxY,v.y);
+  }
+  for (let t=0;t<400;t++){
+    const x = minX + Math.random()*(maxX-minX);
+    const y = minY + Math.random()*(maxY-minY);
+    if (!pointInPoly(x,y,verts)) continue;
+    if (wallClearance(x,y,verts) < BALL_R+14) continue;
+    if (bumpers.some(u => Math.hypot(x-u.x, y-u.y) < u.r+BALL_R+10)) continue;
+    if (balls.some(b => Math.hypot(x-b.x, y-b.y) < BALL_R*2.6)) continue;
+    return {x,y};
+  }
+  return ensureInside(CX+Math.random()*160-80, CY+Math.random()*160-80, verts, BALL_R+10);
+}
+// 🔀 모든 중립 공 속성을 현재 속성이 아닌 나머지 2개 중 랜덤으로 변경
+function shuffleNeutrals(){
+  let n = 0;
+  for (const b of balls){
+    if (b.owner !== NEUTRAL || b.bomb) continue;
+    b.attr = (b.attr + 1 + Math.floor(Math.random()*2)) % 3;
+    spawnParticles(b.x, b.y, '#a8b0b8', 10);
+    n++;
+  }
+  if (!n) return null;
+  blip(520, .08, .18); blip(650, .08, .22);
+  return '🔀 중립 공 속성이 랜덤으로 바뀌었습니다!';
+}
+
+function spawnReinforcements(){
+  const c0 = countBalls(0), c1 = countBalls(1);
+  let target = -1;                      // 열세 측 (없으면 -1)
+  if (c0 !== c1) target = c0 < c1 ? 0 : 1;
+  else if (lives[0] !== lives[1]) target = lives[0] < lives[1] ? 0 : 1;
+  const targetAttrs = target >= 0 ? balls.filter(b=>b.owner===target).map(b=>b.attr) : null;
+  for (let i=0;i<2;i++){
+    // 열세 측 공이 이길 수 있는 속성으로 생성 (a는 (a+1)%3을 이김), 동점이면 무작위
+    const attr = targetAttrs && targetAttrs.length
+      ? (targetAttrs[Math.floor(Math.random()*targetAttrs.length)] + 1) % 3
+      : Math.floor(Math.random()*3);
+    const p = findFreeSpot();
+    balls.push({x:p.x, y:p.y, vx:0, vy:0, owner:NEUTRAL, attr, protUntil:0});
+    spawnParticles(p.x, p.y, '#dfe6ec', 16);
+  }
+  blip(740, .1, .25);
+  // 💣 필드에 폭탄이 없으면 하나 난입
+  let bombMsg = '';
+  if (!balls.some(b => b.bomb)){
+    const p = findFreeSpot();
+    balls.push({x:p.x, y:p.y, vx:0, vy:0, owner:NEUTRAL, attr:-1, bomb:true, protUntil:0});
+    spawnParticles(p.x, p.y, '#ff6b3d', 18);
+    bombMsg = ' 💣 폭탄 공 등장!';
+  }
+  updateHud();
+  return (target >= 0
+    ? `🛟 열세인 ${OWNER_NAME[target]}에게 유리한 중립 공 2개 난입!`
+    : '⚖️ 중립 공 2개가 추가로 난입!') + bombMsg;
+}
+
+const itemBtns = [...document.querySelectorAll('.item-btn')];
+function itemUsable(kind, p){
+  if (phase !== 'aim' || cur() !== p || itemUsed[kind][p]) return false;
+  if (net && p !== myIdx) return false;        // 온라인: 내 아이템만 표시
+  if (kind === 'dbl')  return shotCount >= ITEM_UNLOCK_SHOT && disadvantaged(p) && !doubleArmed;
+  if (kind === 'shd')  return shotCount >= ITEM_UNLOCK_SHOT;
+  if (kind === 'king') return gameMode === 'king';
+  return false;
+}
+function updateItemBtns(){
+  for (const btn of itemBtns){
+    const p = +btn.dataset.p, kind = btn.dataset.item;
+    btn.classList.toggle('hidden', !itemUsable(kind, p));
+    if (kind === 'shd') btn.classList.toggle('arming', shieldArming === p);
+  }
+}
+itemBtns.forEach(btn => btn.addEventListener('click', () => {
+  const p = +btn.dataset.p, kind = btn.dataset.item;
+  if (!itemUsable(kind, p)) return;
+  if (kind === 'dbl'){
+    itemUsed.dbl[p] = true; doubleArmed = true; shieldArming = -1;
+    blip(880,.1,.2); blip(1240,.08,.3);
+    spawnParticles(CX, CY, OWNER_COLOR[p], 24);
+    setMsg(`⚡ ${OWNER_NAME[p]} 연속 공격 발동! 이번 턴에 2번 연속 쏩니다`);
+    if (net) netSend({t:'item', kind:'dbl', p});
+  } else if (kind === 'shd'){
+    // 토글: 누르면 대상 선택 모드, 다시 누르면 취소 (공을 클릭해야 소모)
+    shieldArming = shieldArming === p ? -1 : p;
+    if (shieldArming === p) setMsg('🛡️ 보호막을 씌울 내 공을 클릭하세요 (버튼을 다시 누르면 취소)');
+    else setMsg();
+  } else if (kind === 'king'){
+    shieldArming = -1;
+    startKingPick(p);
+  }
+  updateItemBtns();
+}));
+
+/* 👑 킹볼 속성 변경 — 선택 오버레이 재사용 (보드가 보이는 peek 모드) */
+function startKingPick(p){
+  phase = 'pick';
+  pickState = { mode:'kingitem', who:p, picks:[null,null], timer:null };
+  const ov = document.getElementById('pick');
+  ov.classList.add('peek');
+  document.getElementById('pick-who').textContent = OWNER_NAME[p] + ' — 👑 킹볼 속성 변경';
+  document.getElementById('pick-who').style.color = OWNER_COLOR[p];
+  document.getElementById('pick-warn').textContent = '킹볼에 부여할 새 속성을 고르세요 (1회용)';
+  document.getElementById('pick-sub').textContent = '';
+  document.getElementById('pick-cancel').classList.remove('hidden');
+  ov.classList.remove('hidden');
+}
+document.getElementById('pick-cancel').addEventListener('click', () => {
+  document.getElementById('pick').classList.add('hidden');
+  document.getElementById('pick-cancel').classList.add('hidden');
+  phase = 'aim';
+  setMsg();
+});
+
+/* ---------- 가위바위보 선택 (시작 / 교착) ---------- */
+let pickState = null;
+function startPick(mode){
+  phase = 'pick';
+  shieldArming = -1;
+  if (mode === 'deadlock') setMsg('⚖️ 교착 상태! 모든 공의 속성이 같습니다');
+  pickState = { mode, who:0, picks:[null,null], timer:null };
+  document.getElementById('pick-cancel').classList.add('hidden');
+  document.getElementById('pick').classList.toggle('peek', mode === 'start');
+  document.querySelector('.pick-row').classList.remove('waiting');
+  if (net){
+    // 온라인: 각자 자기 화면에서 동시에 선택
+    if (netRemotePick && netRemotePick.mode === mode){
+      pickState.picks[1-myIdx] = netRemotePick.attr;
+      netRemotePick = null;
+    }
+    showPickFor(myIdx);
+    return;
+  }
+  showPickFor(0);
+}
+function showPickFor(p){
+  pickState.who = p;
+  const ov = document.getElementById('pick');
+  const isOrder = pickState.mode === 'order';
+  document.getElementById('pick-who').textContent =
+    OWNER_NAME[p] + (isOrder ? ' — 선공 가위바위보' : ' — 속성 선택');
+  document.getElementById('pick-who').style.color = OWNER_COLOR[p];
+  document.getElementById('pick-warn').textContent = net
+    ? '🌐 상대도 자기 화면에서 동시에 선택합니다'
+    : '⚠️ 상대 플레이어는 화면을 보지 마세요!';
+  ov.classList.remove('hidden');
+  if (pickState.mode === 'start'){
+    document.getElementById('pick-sub').textContent =
+      (net && pickState.picks[1-myIdx] !== null)
+        ? '상대는 선택을 마쳤습니다 — 중립 공 배치를 보고 결정하세요'
+        : '중립 공 배치를 보고 천천히 결정하세요';
+    return; // 시작 선택은 타이머 없음
+  }
+  document.getElementById('pick-sub').textContent = isOrder
+    ? '이기면 선공! 3초 안에 고르지 않으면 기권패 — 상대가 선공합니다'
+    : '시간 안에 고르지 않으면 무작위로 선택됩니다';
+  if (net && pickState.picks[1-myIdx] !== null)
+    document.getElementById('pick-sub').textContent = '상대는 선택을 마쳤습니다';
+  let t = 3;
+  const timerEl = document.getElementById('pick-timer');
+  timerEl.textContent = t;
+  pickState.timer = setInterval(()=>{
+    t--;
+    if (t <= 0){
+      if (net) submitNetPick(isOrder ? -1 : Math.floor(Math.random()*3)); // -1 = 기권
+      else if (isOrder) forfeitOrder();         // ⏰ 기권 — 상대 선공
+      else submitPick(Math.floor(Math.random()*3));
+    }
+    else timerEl.textContent = t;
+  }, 1000);
+}
+
+/* ---------- 선공 가위바위보 ---------- */
+function forfeitOrder(){
+  if (pickState.timer) clearInterval(pickState.timer);
+  pickState.timer = null;
+  const loser = pickState.who;
+  document.getElementById('pick').classList.add('hidden');
+  resolveOrder(1 - loser, `⏰ ${OWNER_NAME[loser]} 시간 초과 — 기권패`);
+}
+function resolveOrder(winner, detail){
+  firstPlayer = winner;
+  // 후공 플레이어의 공만 첫 턴 보호
+  for (const b of balls){
+    if (b.owner === 0 || b.owner === 1) b.protUntil = b.owner === winner ? 0 : 1;
+  }
+  blip(820, .1, .25);
+  setMsg(`🎲 ${detail} — ${OWNER_NAME[winner]} 선공!`);
+  updateHud();
+  setTimeout(()=> startPick('start'), 1100);
+}
+function submitPick(attr){
+  if (pickState.timer) clearInterval(pickState.timer);
+  pickState.timer = null;
+  // 👑 킹볼 속성 변경 아이템
+  if (pickState.mode === 'kingitem'){
+    const p = pickState.who;
+    document.getElementById('pick').classList.add('hidden');
+    document.getElementById('pick-cancel').classList.add('hidden');
+    phase = 'aim';
+    const king = balls.find(b => b.isKing && b.owner === p);
+    if (king){
+      itemUsed.king[p] = true;
+      king.attr = attr;
+      blip(880,.1,.2); blip(1240,.08,.3);
+      spawnParticles(king.x, king.y, '#ffd166', 24);
+      setMsg(`👑 ${OWNER_NAME[p]} 킹볼 속성 변경 → ${ATTR_ICON[attr]} ${ATTR_NAME[attr]}`);
+      if (net) netSend({t:'item', kind:'king', p, attr});
+    }
+    return;
+  }
+  pickState.picks[pickState.who] = attr;
+  if (pickState.who === 0){
+    showPickFor(1);
+    return;
+  }
+  document.getElementById('pick').classList.add('hidden');
+  const [a,b] = pickState.picks;
+  // 선공 결정: 이긴 사람 선공, 무승부면 재대결
+  if (pickState.mode === 'order'){
+    if (a === b){
+      setMsg(`🤝 둘 다 ${ATTR_NAME[a]}! 무승부 — 다시 정합니다`);
+      setTimeout(()=> startPick('order'), 900);
+      return;
+    }
+    resolveOrder(beats(a,b) ? 0 : 1, `${ATTR_ICON[a]} vs ${ATTR_ICON[b]}`);
+    return;
+  }
+  if (pickState.mode === 'start'){
+    // 시작 선택: 같은 속성도 허용, 각자 자기 공에 적용
+    for (const ball of balls){
+      if (ball.owner !== NEUTRAL) ball.attr = pickState.picks[ball.owner];
+    }
+    setMsg(`선택 완료 — P1 ${ATTR_ICON[a]} vs P2 ${ATTR_ICON[b]}`);
+    setTimeout(beginTurn, 900);
+    return;
+  }
+  // 교착 선택: 또 비기면 재선택
+  if (a === b){
+    setMsg('🤝 둘 다 ' + ATTR_NAME[a] + '! 다시 선택합니다');
+    setTimeout(()=>startPick('deadlock'), 900);
+    return;
+  }
+  for (const ball of balls){
+    if (ball.bomb) continue;
+    ball.attr = ball.owner === NEUTRAL ? Math.floor(Math.random()*3) : pickState.picks[ball.owner];
+  }
+  setMsg(`선택 완료 — P1 ${ATTR_ICON[a]} vs P2 ${ATTR_ICON[b]}`);
+  spawnParticles(CX, CY, '#ffd166', 30);
+  setTimeout(beginTurn, 1100);
+}
+document.querySelectorAll('.pick-btn').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const attr = +btn.dataset.attr;
+    if (net && pickState && pickState.mode !== 'kingitem') submitNetPick(attr);
+    else submitPick(attr);
+  }));
+
+/* ---------- 입력 (마우스 + 터치) ---------- */
+function canvasPos(e){
+  const r = cv.getBoundingClientRect();
+  return { x:(e.clientX - r.left) * W/r.width, y:(e.clientY - r.top) * H/r.height };
+}
+cv.addEventListener('pointerdown', e => {
+  if (phase !== 'aim') return;
+  if (net && cur() !== myIdx) return;          // 온라인: 내 턴에만 조작 가능
+  const p = canvasPos(e);
+  // 🛡️ 실드 대상 선택 중 — 내 공 클릭 시 보호막 적용, 빈 곳 클릭 시 취소
+  if (shieldArming === cur()){
+    const target = balls.find(b => b.owner === cur() && Math.hypot(b.x-p.x, b.y-p.y) < BALL_R*1.9);
+    shieldArming = -1;
+    if (target){
+      itemUsed.shd[cur()] = true;
+      target.protUntil = Math.max(target.protUntil, shotCount + 2); // 내 샷 + 상대 샷 보호
+      blip(980, .08, .2);
+      spawnParticles(target.x, target.y, '#ffffff', 18);
+      setMsg(`🛡️ ${OWNER_NAME[cur()]} 실드! 이 공은 상대 턴까지 보호됩니다`);
+      if (net) netSend({t:'item', kind:'shd', p:cur(), idx: balls.indexOf(target)});
+    } else setMsg();
+    return;
+  }
+  const mine = balls.filter(b => b.owner === cur());
+  const hit = mine.find(b => Math.hypot(b.x-p.x, b.y-p.y) < BALL_R*1.9);
+  if (hit){
+    selected = hit; dragging = true; dragX = p.x; dragY = p.y;
+    cv.setPointerCapture(e.pointerId);
+  } else {
+    selected = mine.find(b => Math.hypot(b.x-p.x, b.y-p.y) < BALL_R*4) || selected;
+  }
+});
+cv.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const p = canvasPos(e);
+  dragX = p.x; dragY = p.y;
+});
+cv.addEventListener('pointerup', e => {
+  if (!dragging || phase !== 'aim'){ dragging=false; return; }
+  dragging = false;
+  const dx = selected.x - dragX, dy = selected.y - dragY;
+  const pull = Math.min(Math.hypot(dx,dy), MAX_PULL);
+  if (pull < 14) return;                       // 너무 짧으면 취소
+  const bonus = shotCount === 1 ? 1.2 : 1.0;   // 후공 첫 샷 보너스
+  const pow = pull / MAX_PULL * MAX_POW * bonus;
+  const d = Math.hypot(dx,dy);
+  selected.vx = dx/d*pow; selected.vy = dy/d*pow;
+  if (net) netSend({t:'shot', idx: balls.indexOf(selected), vx:selected.vx, vy:selected.vy});
+  blip(90, .1, .15);
+  phase = 'moving';
+  setMsg(net ? '내 샷!' : OWNER_NAME[cur()] + ' 샷!');
+});
+
+/* ---------- 렌더링 ---------- */
+function tracePoly(){
+  ctx.beginPath();
+  ctx.moveTo(verts[0].x, verts[0].y);
+  for (let i=1;i<verts.length;i++) ctx.lineTo(verts[i].x, verts[i].y);
+  ctx.closePath();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if (phase === 'setup') return;
+
+  // 우드 프레임
+  tracePoly();
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 30;
+  const woodGrad = ctx.createLinearGradient(0,0,W,H);
+  woodGrad.addColorStop(0,'#8a5c35'); woodGrad.addColorStop(.5,'#5a3a22'); woodGrad.addColorStop(1,'#7a4e2c');
+  ctx.strokeStyle = woodGrad;
+  ctx.stroke();
+  ctx.restore();
+
+  // 펠트
+  tracePoly();
+  ctx.save();
+  ctx.clip();
+  const felt = ctx.createRadialGradient(CX,CY,40, CX,CY,Math.max(W,H)*.55);
+  felt.addColorStop(0,'#226052'); felt.addColorStop(1,'#123830');
+  ctx.fillStyle = felt;
+  ctx.fillRect(0,0,W,H);
+  // 펠트 결
+  ctx.globalAlpha = .05;
+  for (let y=0;y<H;y+=7){ ctx.fillStyle='#fff'; ctx.fillRect(0,y,W,1); }
+  ctx.globalAlpha = 1;
+
+  // 범퍼
+  for (const u of bumpers){
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,7);
+    const g = ctx.createRadialGradient(u.x-6,u.y-8,4,u.x,u.y,u.r);
+    g.addColorStop(0,'#ffe9b0'); g.addColorStop(1,'#b8862e');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.r*.45,0,7);
+    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  // 조준선
+  if (dragging && phase==='aim' && selected){
+    const dx = selected.x-dragX, dy = selected.y-dragY;
+    const pull = Math.min(Math.hypot(dx,dy), MAX_PULL);
+    if (pull > 14){
+      const d = Math.hypot(dx,dy), ux=dx/d, uy=dy/d;
+      ctx.save();
+      ctx.setLineDash([7,8]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = OWNER_COLOR[cur()];
+      ctx.globalAlpha = .85;
+      ctx.beginPath();
+      ctx.moveTo(selected.x, selected.y);
+      ctx.lineTo(selected.x + ux*pull*1.5, selected.y + uy*pull*1.5);
+      ctx.stroke();
+      // 당기는 방향(고무줄)
+      ctx.globalAlpha = .3;
+      ctx.beginPath();
+      ctx.moveTo(selected.x, selected.y);
+      ctx.lineTo(dragX, dragY);
+      ctx.stroke();
+      ctx.restore();
+      // 파워 게이지
+      const pw = pull / MAX_PULL;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
+      ctx.fillRect(selected.x-34, selected.y-BALL_R-26, 68, 9);
+      ctx.fillStyle = pw>.8 ? '#ff5c5c' : '#ffd166';
+      ctx.fillRect(selected.x-32, selected.y-BALL_R-24, 64*pw, 5);
+      ctx.restore();
+    }
+  }
+
+  // 공
+  for (const b of balls){
+    // 그림자
+    ctx.beginPath(); ctx.arc(b.x+3, b.y+5, BALL_R, 0, 7);
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill();
+    // 💣 폭탄 공 — 어두운 몸체 + 붉게 깜빡이는 링
+    if (b.bomb){
+      const bg = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,BALL_R);
+      bg.addColorStop(0,'#5a6066'); bg.addColorStop(1,'#1d2125');
+      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R,0,7);
+      ctx.fillStyle = bg; ctx.fill();
+      const pulse = .55 + Math.sin(performance.now()/150)*.35;
+      ctx.lineWidth = 4.5;
+      ctx.strokeStyle = `rgba(255,92,92,${pulse})`;
+      ctx.stroke();
+      ctx.font = '15px serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💣', b.x, b.y+1);
+      continue;
+    }
+    // 본체
+    const g = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,BALL_R);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(.25,'#f2ede1'); g.addColorStop(1,'#cfc8b8');
+    ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R,0,7);
+    ctx.fillStyle = g; ctx.fill();
+    // 소유 컬러 링
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = OWNER_COLOR[b.owner];
+    ctx.stroke();
+    // 속성 아이콘
+    ctx.font = '15px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1);
+    // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관
+    if (b.isKing){
+      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+3.5,0,7);
+      ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = '13px serif';
+      ctx.fillText('👑', b.x, b.y - BALL_R - 10);
+    }
+    // 보호막
+    if (isProtected(b)){
+      ctx.save();
+      ctx.setLineDash([4,5]);
+      ctx.lineDashOffset = -performance.now()/40;
+      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+6,0,7);
+      ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=2; ctx.stroke();
+      ctx.restore();
+    }
+    // 선택 표시
+    if (phase==='aim' && b===selected && b.owner===cur()){
+      const pulse = 3 + Math.sin(performance.now()/180)*2;
+      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+8+pulse,0,7);
+      ctx.strokeStyle = OWNER_COLOR[cur()]; ctx.lineWidth=2;
+      ctx.globalAlpha=.7; ctx.stroke(); ctx.globalAlpha=1;
+    }
+  }
+
+  // 파티클
+  for (const p of particles){
+    ctx.globalAlpha = p.life/30;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x-2, p.y-2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore(); // clip 해제
+
+  // 펠트 가장자리 안쪽 라인
+  tracePoly();
+  ctx.lineJoin='round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.stroke();
+}
+
+/* ---------- 메인 루프 ---------- */
+function loop(){
+  if (phase === 'moving'){
+    for (let s=0;s<2;s++) physicsStep();   // 서브스텝 2회로 터널링 완화
+    if (allStopped() && phase === 'moving'){
+      if (net && remoteShotActive){
+        // 상대 샷: 내 시뮬은 참고용 — 상대가 보낸 스냅샷으로 확정
+        if (pendingSync){ const d = pendingSync; pendingSync = null; remoteShotActive = false; applySync(d); }
+      } else endShot();
+    }
+  } else if (phase === 'aim' || phase === 'pick' || phase === 'over'){
+    physicsStepIdle();
+  }
+  updateItemBtns();
+  draw();
+  requestAnimationFrame(loop);
+}
+function physicsStepIdle(){ // 파티클만 갱신
+  for (const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vx*=.94; p.vy*=.94; p.life--; }
+  particles = particles.filter(p=>p.life>0);
+}
+
+/* ---------- 시작/재시작 ---------- */
+document.querySelectorAll('.map-btn').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('sel'));
+    btn.classList.add('sel');
+    mapKey = btn.dataset.map;
+    if (net === 'host') netSend({t:'config', map:mapKey, mode:gameMode});
+  }));
+document.querySelectorAll('.mode-btn').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('sel'));
+    btn.classList.add('sel');
+    gameMode = btn.dataset.mode;
+    if (net === 'host') netSend({t:'config', map:mapKey, mode:gameMode});
+  }));
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (netMode !== 'local' && !(conn && conn.open)){
+    setNetStatus('⚠️ 아직 상대가 연결되지 않았습니다');
+    return;
+  }
+  document.getElementById('setup').classList.add('hidden');
+  newGame();
+  if (net === 'host') netSend({t:'start', map:mapKey, mode:gameMode, balls:snapBalls()});
+});
+document.getElementById('restart-btn').addEventListener('click', () => {
+  if (net) netSend({t:'restart'});
+  returnToSetup();
+});
+
+/* ============================================================
+   온라인 1:1 (PeerJS / WebRTC)
+   - 호스트 = PLAYER 1, 게스트 = PLAYER 2
+   - 샷·아이템·가위바위보 선택을 메시지로 주고받고,
+     샷을 쏜 쪽이 시뮬레이션 종료 시 전체 상태 스냅샷(sync)을 보내
+     양쪽 화면을 일치시킨다 (물리 오차 누적 방지)
+============================================================ */
+const $id = id => document.getElementById(id);
+function netSend(o){ if (conn && conn.open) conn.send(o); }
+function setNetStatus(t){ $id('net-status').textContent = t; }
+function setNetNames(){
+  document.querySelector('#card1 .pname').textContent = 'PLAYER 1' + (net && myIdx===0 ? ' (나)' : '');
+  document.querySelector('#card2 .pname').textContent = 'PLAYER 2' + (net && myIdx===1 ? ' (나)' : '');
+}
+function snapBalls(){
+  return balls.map(b => ({x:+b.x.toFixed(1), y:+b.y.toFixed(1), owner:b.owner, attr:b.attr,
+                          protUntil:b.protUntil, isKing:!!b.isKing, bomb:!!b.bomb}));
+}
+// 양쪽이 같은 값을 얻는 결정적 의사난수 — 교착 해소 시 중립 공 속성용
+function hashRand(...nums){
+  let h = 2166136261;
+  for (const n of nums){ h ^= Math.imul(n + 40503, 2654435761); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 4096) / 4096;
+}
+
+function sendSync(notice){
+  netSend({t:'sync', balls:snapBalls(), shotCount, lives:[...lives], kingLives:[...kingLives],
+    suddenDeath, turnFlip, doubleArmed,
+    itemUsed:{dbl:[...itemUsed.dbl], shd:[...itemUsed.shd], king:[...itemUsed.king]},
+    phase, pickMode: phase==='pick' && pickState ? pickState.mode : null,
+    over: phase==='over' ? lastWin : null,
+    notice: notice || null});
+}
+function applySync(d){
+  applyingSync = true;
+  balls = d.balls.map(b => ({...b, vx:0, vy:0}));
+  shotCount = d.shotCount; lives = d.lives; kingLives = d.kingLives;
+  suddenDeath = d.suddenDeath; turnFlip = d.turnFlip; doubleArmed = d.doubleArmed;
+  itemUsed = d.itemUsed;
+  pairCool.clear(); selected = null;
+  $id('end').classList.add('hidden');
+  $id('pick').classList.add('hidden');
+  if (d.phase === 'over' && d.over){
+    phase = 'aim';                       // gameOver 재진입 가드 통과용
+    gameOver(d.over.winner, d.over.detail);
+  } else if (d.phase === 'pick'){
+    startPick(d.pickMode);
+  } else {
+    beginTurn();
+    if (d.notice) setMsg(d.notice);
+  }
+  updateHud();
+  applyingSync = false;
+}
+
+/* ---------- 온라인 가위바위보 (동시 선택) ---------- */
+function submitNetPick(attr){
+  if (!pickState || pickState.mode === 'kingitem') return;
+  if (pickState.picks[myIdx] !== null) return;             // 중복 제출 방지
+  if (pickState.timer){ clearInterval(pickState.timer); pickState.timer = null; }
+  pickState.picks[myIdx] = attr;
+  netSend({t:'pick', mode:pickState.mode, attr});
+  if (pickState.picks[1-myIdx] !== null){ resolveNetPicks(); return; }
+  document.querySelector('.pick-row').classList.add('waiting');
+  $id('pick-sub').textContent = '⏳ 상대를 기다리는 중...';
+  $id('pick-timer').textContent = '·';
+}
+function resolveNetPicks(){
+  if (pickState.timer) clearInterval(pickState.timer);
+  const st = pickState; pickState = null;
+  const [a, b] = st.picks;                                 // a = P1 선택, b = P2 선택
+  $id('pick').classList.add('hidden');
+  document.querySelector('.pick-row').classList.remove('waiting');
+  if (st.mode === 'order'){
+    if (a === -1 && b === -1){ setMsg('⏰ 둘 다 시간 초과 — 다시 정합니다'); setTimeout(()=> startPick('order'), 900); return; }
+    if (a === -1 || b === -1){
+      const loser = a === -1 ? 0 : 1;
+      resolveOrder(1-loser, `⏰ ${OWNER_NAME[loser]} 시간 초과 — 기권패`);
+      return;
+    }
+    if (a === b){ setMsg(`🤝 둘 다 ${ATTR_NAME[a]}! 무승부 — 다시 정합니다`); setTimeout(()=> startPick('order'), 900); return; }
+    resolveOrder(beats(a,b) ? 0 : 1, `${ATTR_ICON[a]} vs ${ATTR_ICON[b]}`);
+    return;
+  }
+  if (st.mode === 'start'){
+    for (const ball of balls){
+      if (ball.owner !== NEUTRAL) ball.attr = st.picks[ball.owner];
+    }
+    setMsg(`선택 완료 — P1 ${ATTR_ICON[a]} vs P2 ${ATTR_ICON[b]}`);
+    setTimeout(beginTurn, 900);
+    return;
+  }
+  // 교착 재선택 — 중립 공 속성은 양쪽이 동일하게 결정적 난수로
+  if (a === b){ setMsg('🤝 둘 다 ' + ATTR_NAME[a] + '! 다시 선택합니다'); setTimeout(()=> startPick('deadlock'), 900); return; }
+  let ni = 0;
+  for (const ball of balls){
+    if (ball.bomb) continue;
+    ball.attr = ball.owner === NEUTRAL
+      ? Math.floor(hashRand(shotCount, a, b, ni) * 3)
+      : st.picks[ball.owner];
+    ni++;
+  }
+  setMsg(`선택 완료 — P1 ${ATTR_ICON[a]} vs P2 ${ATTR_ICON[b]}`);
+  spawnParticles(CX, CY, '#ffd166', 30);
+  setTimeout(beginTurn, 1100);
+}
+
+/* ---------- 수신 처리 ---------- */
+function applyRemoteItem(d){
+  if (d.kind === 'dbl'){
+    itemUsed.dbl[d.p] = true; doubleArmed = true;
+    blip(880,.1,.2);
+    setMsg(`⚡ ${OWNER_NAME[d.p]} 연속 공격 발동! 이번 턴에 2번 연속 쏩니다`);
+  } else if (d.kind === 'shd'){
+    itemUsed.shd[d.p] = true;
+    const b = balls[d.idx];
+    if (b){ b.protUntil = Math.max(b.protUntil, shotCount + 2); spawnParticles(b.x, b.y, '#ffffff', 18); }
+    blip(980,.08,.2);
+    setMsg(`🛡️ ${OWNER_NAME[d.p]} 실드! 해당 공은 상대 턴까지 보호됩니다`);
+  } else if (d.kind === 'king'){
+    itemUsed.king[d.p] = true;
+    const k = balls.find(b => b.isKing && b.owner === d.p);
+    if (k){ k.attr = d.attr; spawnParticles(k.x, k.y, '#ffd166', 24); }
+    blip(880,.1,.2);
+    setMsg(`👑 ${OWNER_NAME[d.p]} 킹볼 속성 변경 → ${ATTR_ICON[d.attr]} ${ATTR_NAME[d.attr]}`);
+  }
+}
+function onNetData(d){
+  if (!d || typeof d !== 'object') return;
+  switch (d.t){
+    case 'config':                                   // 호스트의 모드/맵 선택 미리보기
+      mapKey = d.map; gameMode = d.mode;
+      document.querySelectorAll('.map-btn').forEach(b => b.classList.toggle('sel', b.dataset.map === mapKey));
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('sel', b.dataset.mode === gameMode));
+      break;
+    case 'start':                                    // 호스트가 게임 시작 (보드 배치 포함)
+      if (net !== 'guest') break;
+      mapKey = d.map; gameMode = d.mode;
+      $id('setup').classList.add('hidden');
+      $id('end').classList.add('hidden');
+      setupTable();
+      balls = d.balls.map(b => ({...b, vx:0, vy:0}));
+      resetMatchState();
+      setMsg('✊✌️✋ 가위바위보로 선공을 정합니다!');
+      updateHud();
+      startPick('order');
+      break;
+    case 'pick':
+      if (pickState && pickState.mode === d.mode && pickState.picks[1-myIdx] === null){
+        pickState.picks[1-myIdx] = d.attr;
+        if (pickState.picks[myIdx] !== null) resolveNetPicks();
+        else $id('pick-sub').textContent = '상대는 선택을 마쳤습니다';
+      } else {
+        netRemotePick = {mode:d.mode, attr:d.attr};  // 아직 픽 화면 전 → 버퍼
+      }
+      break;
+    case 'item':
+      applyRemoteItem(d);
+      break;
+    case 'shot': {
+      const b = balls[d.idx];
+      if (!b) break;
+      b.vx = d.vx; b.vy = d.vy;
+      remoteShotActive = true; pendingSync = null;
+      phase = 'moving';
+      blip(90, .1, .15);
+      setMsg('상대 샷!');
+      break;
+    }
+    case 'sync':
+      if (phase === 'moving' && remoteShotActive && !allStopped()){
+        pendingSync = d;                             // 내 화면 시뮬이 끝나면 적용
+      } else {
+        remoteShotActive = false; pendingSync = null;
+        applySync(d);
+      }
+      break;
+    case 'restart':
+      if (phase !== 'setup') returnToSetup();
+      break;
+  }
+}
+
+/* ---------- 연결 관리 ---------- */
+function bindConn(c){
+  c.on('data', onNetData);
+  c.on('close', netDropped);
+  c.on('error', netDropped);
+}
+function netDropped(){
+  if (!net) return;                  // 연결 성립 전 오류는 peer.error가 표시
+  if (pickState && pickState.timer){ clearInterval(pickState.timer); pickState.timer = null; }
+  net = null; conn = null;
+  document.querySelector('#setup .panel').classList.remove('guest-lock');
+  setNetStatus('⚠️ 연결이 끊어졌습니다');
+  if (phase !== 'setup' && phase !== 'over'){
+    phase = 'over';
+    updateHud();
+    const t = $id('end-title');
+    t.textContent = '연결 종료';
+    t.style.color = 'var(--neon)';
+    $id('end-detail').textContent = '상대와의 연결이 끊어졌습니다.';
+    $id('pick').classList.add('hidden');
+    $id('end').classList.remove('hidden');
+  }
+}
+function teardownNet(){
+  if (conn){ try{ conn.close(); }catch(e){} }
+  if (peer){ try{ peer.destroy(); }catch(e){} }
+  conn = null; peer = null; net = null; myIdx = 0;
+  remoteShotActive = false; pendingSync = null; netRemotePick = null;
+  document.querySelector('#setup .panel').classList.remove('guest-lock');
+  setNetNames();
+}
+function returnToSetup(){
+  $id('end').classList.add('hidden');
+  $id('pick').classList.add('hidden');
+  $id('setup').classList.remove('hidden');
+  phase = 'setup';
+  if (net === 'guest') setNetStatus('✅ 연결됨! 호스트가 게임을 시작하길 기다리는 중...');
+  else if (net === 'host') setNetStatus('✅ 상대 연결됨! 게임을 시작하세요');
+}
+function makeCode(){
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';      // 헷갈리는 글자(I,L,O,0,1) 제외
+  let s = '';
+  for (let i=0;i<5;i++) s += A[Math.floor(Math.random()*A.length)];
+  return s;
+}
+function startHost(){
+  if (typeof Peer === 'undefined'){ setNetStatus('⚠️ 네트워크 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)'); return; }
+  const code = makeCode();
+  $id('room-code').textContent = code;
+  setNetStatus('서버에 연결하는 중...');
+  peer = new Peer('mjbq-' + code);
+  peer.on('open', () => setNetStatus('🕓 상대를 기다리는 중... 위 코드를 상대에게 알려주세요'));
+  peer.on('connection', c => {
+    if (conn && conn.open){ c.close(); return; }     // 1:1 — 초과 인원 거절
+    conn = c;
+    bindConn(c);
+    c.on('open', () => {
+      net = 'host'; myIdx = 0;
+      setNetStatus('✅ 상대가 연결되었습니다! 모드와 맵을 고르고 게임을 시작하세요');
+      netSend({t:'config', map:mapKey, mode:gameMode});
+    });
+  });
+  peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id') startHost();  // 코드 충돌 → 재발급
+    else setNetStatus('⚠️ 연결 오류: ' + err.type);
+  });
+}
+function joinRoom(){
+  if (typeof Peer === 'undefined'){ setNetStatus('⚠️ 네트워크 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)'); return; }
+  const code = $id('join-code').value.trim().toUpperCase();
+  if (code.length !== 5){ setNetStatus('5자리 방 코드를 입력하세요'); return; }
+  if (peer){ try{ peer.destroy(); }catch(e){} }
+  setNetStatus('서버에 연결하는 중...');
+  peer = new Peer();
+  peer.on('open', () => {
+    setNetStatus('방에 접속하는 중...');
+    const c = peer.connect('mjbq-' + code, {reliable:true});
+    conn = c;
+    bindConn(c);
+    c.on('open', () => {
+      net = 'guest'; myIdx = 1;
+      document.querySelector('#setup .panel').classList.add('guest-lock');
+      setNetStatus('✅ 연결됨! 호스트가 게임을 시작하길 기다리는 중...');
+    });
+  });
+  peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
+  peer.on('error', err => {
+    setNetStatus(err.type === 'peer-unavailable'
+      ? '⚠️ 해당 코드의 방을 찾을 수 없습니다'
+      : '⚠️ 연결 오류: ' + err.type);
+  });
+}
+
+/* ---------- 네트워크 UI ---------- */
+document.querySelectorAll('.net-btn').forEach(btn => btn.addEventListener('click', () => {
+  if (btn.dataset.net === netMode) return;
+  teardownNet();
+  netMode = btn.dataset.net;
+  document.querySelectorAll('.net-btn').forEach(b => b.classList.toggle('sel', b === btn));
+  $id('net-panel').classList.toggle('hidden', netMode === 'local');
+  $id('net-host-ui').classList.toggle('hidden', netMode !== 'host');
+  $id('net-join-ui').classList.toggle('hidden', netMode !== 'join');
+  setNetStatus('');
+  if (netMode === 'host') startHost();
+}));
+$id('join-btn').addEventListener('click', joinRoom);
+$id('join-code').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
+
+loop();
+})();
+</script>
+</body>
+</html>

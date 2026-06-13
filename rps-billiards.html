@@ -253,6 +253,13 @@
       <div id="net-join-ui" class="hidden"><input id="join-code" maxlength="5" placeholder="코드"><button id="join-btn">접속</button></div>
       <div id="net-status"></div>
     </div>
+    <div id="ai-panel" class="hidden">
+      <div class="modes" id="ai-row">
+        <div class="mode-btn" data-ai="easy"><b>🟢 쉬움</b><small>실수가 잦아요</small></div>
+        <div class="mode-btn sel" data-ai="normal"><b>🟡 보통</b><small>적당한 실력</small></div>
+        <div class="mode-btn" data-ai="hard"><b>🔴 어려움</b><small>정확하게 노려요</small></div>
+      </div>
+    </div>
     <div class="modes" id="mode-row">
       <div class="mode-btn sel" data-mode="normal"><b>일반 모드</b><small>♥2 · 마지막 공을 사수하세요</small></div>
       <div class="mode-btn" data-mode="king"><b>👑 킹볼 모드</b><small>킹볼 ♥3 · 3번 피격당하면 패배</small></div>
@@ -469,6 +476,12 @@ let lastWin = null;      // 마지막 승부 결과 {winner, detail}
 let vsAI = false;        // true면 owner 1 = 컴퓨터
 const aiIdx = 1;
 let aiTimer = null;
+let aiLevel = 'normal';  // easy | normal | hard
+const AI_CFG = {
+  easy:   { noise:0.40, randTarget:0.5, powJitter:0.50 },  // 조준 부정확·아무 표적
+  normal: { noise:0.10, randTarget:0.0, powJitter:0.18 },
+  hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
+};
 
 const cur = () => (shotCount + turnFlip + firstPlayer) % 2;
 const countBalls = o => balls.reduce((n,b)=> n + (b.owner===o), 0);
@@ -843,10 +856,11 @@ function maybeAiTurn(){
 function aiShoot(){
   aiTimer = null;
   if (!vsAI || phase !== 'aim' || cur() !== aiIdx) return;
+  const cfg = AI_CFG[aiLevel] || AI_CFG.normal;
   const mine = balls.filter(b => b.owner === aiIdx && !b.bomb);
   if (!mine.length) return;
-  // 내가 이길 수 있고, 보호 안 됐고, 내 것이 아닌 공을 노린다 (사람 공·킹볼 우선, 가까울수록 좋음)
-  let best = null;
+  // 내가 이길 수 있고, 보호 안 됐고, 내 것이 아닌 공들 = 표적 후보 (사람 공·킹볼 우선, 가까울수록 좋음)
+  const cands = [];
   for (const a of mine){
     if (a.attr < 0) continue;
     for (const t of balls){
@@ -856,12 +870,19 @@ function aiShoot(){
       let score = Math.hypot(t.x-a.x, t.y-a.y);
       if (t.owner === 0) score -= 250;                       // 사람 공 우선
       if (t.isKing) score -= 200;                            // 킹볼 노리기
-      if (!best || score < best.score) best = { a, t, score };
+      cands.push({ a, t, score });
     }
   }
-  let a, tx, ty, d, positioning = false;
-  if (best){
-    a = best.a; tx = best.t.x; ty = best.t.y;
+  cands.sort((x,y) => x.score - y.score);
+  let chosen = null, positioning = false;
+  if (cands.length){
+    chosen = (cfg.randTarget && Math.random() < cfg.randTarget)
+      ? cands[Math.floor(Math.random()*cands.length)]        // 쉬움: 아무 표적이나
+      : cands[0];                                            // 최선의 표적
+  }
+  let a, tx, ty;
+  if (chosen){
+    a = chosen.a; tx = chosen.t.x; ty = chosen.t.y;
   } else {
     // 이길 대상이 없으면 가장 가까운 상대/중립 공 쪽으로 약하게 (포지셔닝)
     positioning = true;
@@ -874,11 +895,13 @@ function aiShoot(){
     }
     if (near){ tx = near.x; ty = near.y; } else { tx = CX; ty = CY; }
   }
-  d = Math.hypot(tx-a.x, ty-a.y);
-  let ang = Math.atan2(ty-a.y, tx-a.x) + (Math.random()-0.5)*0.08;  // 약간의 조준 오차
+  const d = Math.hypot(tx-a.x, ty-a.y);
+  const ang = Math.atan2(ty-a.y, tx-a.x) + (Math.random()-0.5)*cfg.noise;  // 난이도별 조준 오차
   let pow = Math.max(1.6, Math.min(MAX_POW, d/100 + 1.4));
   if (positioning) pow = Math.min(pow, 3.2);
-  pow *= (shotCount === 1 ? 1.2 : 1.0);                            // 후공 첫 샷 보너스
+  pow *= 1 + (Math.random()-0.5)*cfg.powJitter;                            // 난이도별 힘 오차
+  pow *= (shotCount === 1 ? 1.2 : 1.0);                                    // 후공 첫 샷 보너스
+  pow = Math.max(1.4, Math.min(MAX_POW*1.2, pow));
   selected = a;
   a.vx = Math.cos(ang)*pow; a.vy = Math.sin(ang)*pow;
   blip(90, .1, .15);
@@ -1434,9 +1457,9 @@ document.querySelectorAll('.map-btn').forEach(btn =>
     mapKey = btn.dataset.map;
     if (net === 'host') netSend({t:'config', map:mapKey, mode:gameMode});
   }));
-document.querySelectorAll('.mode-btn').forEach(btn =>
+document.querySelectorAll('#mode-row .mode-btn').forEach(btn =>
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('sel'));
+    document.querySelectorAll('#mode-row .mode-btn').forEach(b=>b.classList.remove('sel'));
     btn.classList.add('sel');
     gameMode = btn.dataset.mode;
     if (net === 'host') netSend({t:'config', map:mapKey, mode:gameMode});
@@ -1742,10 +1765,15 @@ document.querySelectorAll('.net-btn').forEach(btn => btn.addEventListener('click
   vsAI = (netMode === 'ai');
   document.querySelectorAll('.net-btn').forEach(b => b.classList.toggle('sel', b === btn));
   $id('net-panel').classList.toggle('hidden', netMode === 'local' || netMode === 'ai');
+  $id('ai-panel').classList.toggle('hidden', netMode !== 'ai');
   $id('net-host-ui').classList.toggle('hidden', netMode !== 'host');
   $id('net-join-ui').classList.toggle('hidden', netMode !== 'join');
   setNetStatus('');
   if (netMode === 'host') startHost();
+}));
+document.querySelectorAll('#ai-row .mode-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('#ai-row .mode-btn').forEach(b => b.classList.toggle('sel', b === btn));
+  aiLevel = btn.dataset.ai;
 }));
 $id('join-btn').addEventListener('click', joinRoom);
 $id('join-code').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });

@@ -44,6 +44,31 @@
   }
   .player-card.right{flex-direction:row-reverse;text-align:right}
   .player-card.active{border-color:currentColor;box-shadow:0 0 18px -4px currentColor}
+  /* 목숨 감소 시 카드 진동 + 붉은 섬광 */
+  .player-card.hit{animation:cardhit .55s ease-out}
+  @keyframes cardhit{
+    0%,100%{transform:translateX(0)}
+    10%{transform:translateX(-7px);box-shadow:0 0 26px -2px #ff3b3b;border-color:#ff3b3b}
+    25%{transform:translateX(7px);box-shadow:0 0 26px -2px #ff3b3b;border-color:#ff3b3b}
+    40%{transform:translateX(-5px)}
+    60%{transform:translateX(4px)}
+    80%{transform:translateX(-2px)}
+  }
+  /* 목숨 감소 순간 전체 붉은 섬광 */
+  #flash{
+    position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;
+    background:radial-gradient(circle at 50% 50%, transparent 25%, rgba(255,30,30,.6) 100%);
+  }
+  #flash.show{animation:flashhit .6s ease-out}
+  @keyframes flashhit{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
+  /* 위기(마지막 목숨·서든데스) 시 붉은 심장박동 비네팅 */
+  #vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:39;opacity:0;
+    background:radial-gradient(circle at 50% 50%, transparent 50%, rgba(190,0,0,.55) 100%);
+    transition:opacity .5s;
+  }
+  body.danger #vignette{animation:heartbeat 1.15s ease-in-out infinite}
+  @keyframes heartbeat{0%,55%,100%{opacity:.22}18%{opacity:.6}32%{opacity:.32}}
   #card1{color:var(--p1)} #card2{color:var(--p2)}
   .dot{width:14px;height:14px;border-radius:50%;background:currentColor;flex:none;box-shadow:0 0 8px currentColor}
   .pinfo{display:flex;flex-direction:column;min-width:0}
@@ -242,6 +267,8 @@
 </style>
 </head>
 <body>
+<div id="vignette"></div>
+<div id="flash"></div>
 
 <div id="hud">
   <div class="player-card" id="card1">
@@ -557,6 +584,7 @@ let mapKey = 'hex';
 let verts = [], bumpers = [], spawns = [];
 let balls = [];          // {x,y,vx,vy,owner,attr,protUntil}
 let particles = [];
+let shakeMag = 0;        // 화면 흔들림 세기 (연출)
 let shotCount = 0;       // 지금까지 발사된 샷 수 (짝수=P1 차례)
 let lives = [LIVES_MAX, LIVES_MAX];
 let phase = 'setup';     // setup | aim | moving | pick | over
@@ -751,6 +779,7 @@ function updateHud(){
     suddenDeath ? 'SUDDEN DEATH' : round + ' / ' + ROUND_LIMIT;
   document.getElementById('card1').classList.toggle('active', phase!=='over' && cur()===0);
   document.getElementById('card2').classList.toggle('active', phase!=='over' && cur()===1);
+  updateDanger();
 }
 function setMsg(text){
   const el = document.getElementById('turn-msg');
@@ -866,7 +895,7 @@ function resolveBattle(a, b, impact){
   if (lose.isKing){
     const p = lose.owner;
     kingLives[p]--;
-    blip(120, .15, .35);
+    onLifeLost(p);
     spawnParticles(lose.x, lose.y, '#ff4d4d', 26);
     setMsg(`👑 ${OWNER_NAME[p]} 킹볼 피격! 남은 목숨 ${Math.max(0, kingLives[p])}`);
     if (kingLives[p] <= 0){ gameOver(1-p, `${OWNER_NAME[p]}의 킹볼이 함락되었습니다`); return; }
@@ -888,7 +917,7 @@ function resolveBattle(a, b, impact){
   if (lose.owner !== NEUTRAL && countBalls(lose.owner) === 1){
     const p = lose.owner;
     lives[p]--;
-    blip(120, .15, .35);
+    onLifeLost(p);
     spawnParticles(lose.x, lose.y, '#ff4d4d', 26);
     setMsg(`💔 ${OWNER_NAME[p]}의 마지막 공 피격! 목숨 -1`);
     if (lives[p] <= 0){ gameOver(1-p, `${OWNER_NAME[p]}의 목숨이 모두 소진되었습니다`); return; }
@@ -925,6 +954,33 @@ function spawnParticles(x,y,color,n){
   }
 }
 
+/* ---------- 연출(긴장감) ---------- */
+function addShake(m){ shakeMag = Math.min(26, shakeMag + m); }
+function restartAnim(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+// 위기 상태(마지막 목숨·서든데스) → 화면 붉은 심장박동
+function updateDanger(){
+  const lv = gameMode === 'king' ? kingLives : lives;
+  const active = phase !== 'over' && phase !== 'setup' &&
+    (suddenDeath || lv[0] <= 1 || lv[1] <= 1);
+  document.body.classList.toggle('danger', active);
+}
+// 묵직한 타격음 (목숨 감소)
+function lifeLostSound(){
+  blip(60, .3, .55);                            // 낮은 붐
+  blip(150, .14, .25);
+  setTimeout(()=> blip(110, .18, .2), 120);     // 두-근
+  setTimeout(()=> blip(90, .14, .26), 320);
+}
+// 목숨 감소 순간 연출: 흔들림 + 붉은 섬광 + 카드 진동 + 사운드
+function onLifeLost(p){
+  addShake(22);
+  restartAnim(document.getElementById('flash'), 'show');
+  restartAnim(document.getElementById('card'+(p+1)), 'hit');
+  spawnParticles(spawns[p] ? spawns[p].x : CX, spawns[p] ? spawns[p].y : CY, '#ff3b3b', 30);
+  lifeLostSound();
+  updateDanger();
+}
+
 /* ---------- 💣 폭탄 폭발 — 주변 공을 방사형으로 밀쳐냄 ---------- */
 function explode(bomb){
   for (const b of balls){
@@ -937,6 +993,7 @@ function explode(bomb){
   spawnParticles(bomb.x, bomb.y, '#ff6b3d', 40);
   spawnParticles(bomb.x, bomb.y, '#ffd166', 22);
   blip(60, .25, .5); blip(150, .18, .3);
+  addShake(16);
   setMsg('💣 폭탄 폭발!');
 }
 
@@ -1435,6 +1492,16 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   if (phase === 'setup') return;
 
+  // 화면 흔들림(연출) — 전체 보드를 살짝 떨리게
+  let _sx = 0, _sy = 0;
+  if (shakeMag > 0.4){
+    _sx = (Math.random()*2-1) * shakeMag;
+    _sy = (Math.random()*2-1) * shakeMag;
+    shakeMag *= 0.86;
+  } else shakeMag = 0;
+  ctx.save();
+  ctx.translate(_sx, _sy);
+
   // 우드 프레임
   tracePoly();
   ctx.save();
@@ -1504,10 +1571,21 @@ function draw(){
   }
 
   // 공
+  const _lv = gameMode === 'king' ? kingLives : lives;
   for (const b of balls){
     // 그림자
     ctx.beginPath(); ctx.arc(b.x+3, b.y+5, BALL_R, 0, 7);
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill();
+    // ⚠️ 위험한 공 — 잃으면 게임이 끝나는 공에 붉은 맥동 링
+    if (!b.bomb && b.owner !== NEUTRAL){
+      const lastBall = gameMode === 'king' ? b.isKing : countBalls(b.owner) === 1;
+      if (lastBall && (suddenDeath || _lv[b.owner] <= 1)){
+        const pl = 0.5 + 0.5*Math.sin(performance.now()/180);
+        ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R + 6 + pl*4, 0, 7);
+        ctx.strokeStyle = `rgba(255,55,55,${0.35 + pl*0.45})`;
+        ctx.lineWidth = 3; ctx.stroke();
+      }
+    }
     // 💣 폭탄 공 — 어두운 몸체 + 붉게 깜빡이는 링
     if (b.bomb){
       const bg = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,BALL_R);
@@ -1571,6 +1649,8 @@ function draw(){
   ctx.lineWidth = 2;
   ctx.strokeStyle = 'rgba(255,255,255,.12)';
   ctx.stroke();
+
+  ctx.restore(); // 화면 흔들림 해제
 }
 
 /* ---------- 메인 루프 ---------- */
@@ -1842,6 +1922,7 @@ function teardownNet(){
   setNetNames();
 }
 function returnToSetup(){
+  document.body.classList.remove('danger');
   $id('rules').classList.add('hidden');
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');

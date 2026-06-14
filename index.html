@@ -626,6 +626,41 @@ function blip(freq, vol, dur){
     o.start(); o.stop(AC.currentTime + dur);
   }catch(e){}
 }
+// 🎱 당구공이 부딪히는 소리 — 세게 칠수록 더 크고 높고 또렷하게
+//   cushion=true 면 벽(쿠션)에 맞는 둔탁한 소리
+function clack(impact, cushion){
+  try{
+    if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
+    const now = AC.currentTime;
+    const v = Math.min(1, Math.max(0, impact) / 8);          // 충돌 세기 0~1 정규화
+    const vol = (cushion ? 0.05 : 0.08) + v * (cushion ? 0.10 : 0.22);
+    const dur = (cushion ? 0.07 : 0.045) + v * 0.03;
+    const base = (cushion ? 260 + v*320 : 1500 + v*1700);    // 셀수록 높은 음
+    const freq = base * (1 + (Math.random()*2-1)*0.06);      // 약간의 랜덤
+
+    // 1) 짧은 노이즈 버스트 — '딱' 하는 타격 질감 (밴드패스로 통과)
+    const n = Math.max(1, Math.floor(AC.sampleRate * dur));
+    const buf = AC.createBuffer(1, n, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<n;i++){ const e = Math.pow(1 - i/n, 2); d[i] = (Math.random()*2-1) * e; }
+    const noise = AC.createBufferSource(); noise.buffer = buf;
+    const bp = AC.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = cushion ? 0.7 : 1.3;
+    const ng = AC.createGain(); ng.gain.value = vol;
+    noise.connect(bp); bp.connect(ng); ng.connect(AC.destination);
+    noise.start(now); noise.stop(now + dur);
+
+    // 2) 짧은 톤 '노크' — 단단한 공 느낌
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = cushion ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime(freq, now);
+    o.frequency.exponentialRampToValueAtTime(freq*0.55, now + dur);
+    g.gain.setValueAtTime(vol*0.7, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(now); o.stop(now + dur);
+  }catch(e){}
+}
 
 /* ---------- 초기화 ---------- */
 function setupTable(){
@@ -770,7 +805,7 @@ function physicsStep(){
         if (vn < 0){
           b.vx -= 2*vn*nx; b.vy -= 2*vn*ny;
           b.vx *= 0.9; b.vy *= 0.9;
-          if (Math.abs(vn) > 1.2) blip(180, .05, .08);
+          if (Math.abs(vn) > 1.0) clack(Math.abs(vn), true);
         }
       }
     }
@@ -811,7 +846,7 @@ function physicsStep(){
             if (a.bomb) exploding.add(a);
             if (b.bomb) exploding.add(b);
           } else {
-            blip(300 + Math.random()*100, .08, .07);
+            clack(Math.abs(rvn));
             resolveBattle(a, b, Math.abs(rvn));
           }
         }

@@ -178,7 +178,19 @@
   #config-title{font-size:17px;font-weight:800;color:var(--neon);text-align:left}
   .section-label{text-align:left;font-size:12px;font-weight:700;opacity:.55;letter-spacing:.5px;margin:16px 2px 6px}
   #rules-title{font-size:21px;font-weight:900;color:var(--neon);margin-bottom:14px}
-  #rules .rules{margin-bottom:20px}
+  #rules .rules{margin-bottom:18px}
+  .rule-sec{
+    text-align:left;
+    background:rgba(255,255,255,.035);
+    border-left:3px solid var(--neon);
+    border-radius:0 10px 10px 0;
+    padding:10px 14px;margin:10px 0;
+  }
+  .rule-sec h4{font-size:13.5px;font-weight:800;color:var(--neon);margin-bottom:6px;letter-spacing:.3px}
+  .rule-sec ul{list-style:none;margin:0;padding:0}
+  .rule-sec li{position:relative;padding-left:13px;font-size:12.5px;line-height:1.6;opacity:.9;margin:5px 0}
+  .rule-sec li::before{content:'';position:absolute;left:2px;top:8px;width:4px;height:4px;border-radius:50%;background:var(--neon);opacity:.6}
+  .rule-sec li b{color:#fff;font-weight:700}
   /* ---------- 온라인 연결 패널 ---------- */
   #net-panel{margin:12px auto 0;font-size:14px}
   #room-code{color:var(--neon);font-size:21px;letter-spacing:5px;font-weight:900;vertical-align:middle}
@@ -420,16 +432,49 @@
   <div class="panel">
     <div id="rules-title">📖 게임 설명</div>
     <div class="rules">
-      🎲 시작 전 가위바위보로 선공을 정합니다 — 3초 안에 못 고르면 기권패!<br>
-      ✊바위 &gt; ✌️가위 &gt; ✋보 &gt; ✊바위 — 이기는 공이 진 공을 자기 편으로 만듭니다.<br>
-      중립(회색) 공에게 지면 내 공이 중립이 됩니다.<br>
-      <b>일반 모드</b>: 마지막 공이 잡히면 ♥-1 후 리스폰, ♥ 2개를 모두 잃으면 패배!<br>
-      <b>👑 킹볼 모드</b>: 왕관 공은 빼앗기지 않는 대신 피격마다 ♥-1 (♥3개). 속성 변경 아이템 각자 1회!<br>
-      🔀 3라운드마다 중립 공의 속성이 다른 속성으로 랜덤하게 바뀝니다 (직전 라운드에 예고).<br>
-      🛟 5라운드마다 열세 측에 유리한 중립 공 2개와 💣 폭탄 공(부딪히면 폭발)이 난입합니다.<br>
-      ⚡ 연속 공격(열세일 때)과 🛡️ 실드는 5라운드 이후 각자 1회 쓸 수 있습니다.<br>
-      📱 한 손가락으로 조준·발사, 두 손가락으로 맵 확대/축소.<br>
-      20라운드 안에 끝나지 않으면 공 개수 → 목숨 순으로 판정합니다.
+      <section class="rule-sec">
+        <h4>🎯 조작</h4>
+        <ul>
+          <li>내 공을 끌어당겨 조준하고, 놓으면 <b>발사</b> — 멀리 당길수록 강하게.</li>
+          <li>두 손가락으로 <b>맵 확대·축소</b> (모바일).</li>
+        </ul>
+      </section>
+      <section class="rule-sec">
+        <h4>✊✌️✋ 기본 규칙</h4>
+        <ul>
+          <li>상성: <b>✊바위 &gt; ✌️가위 &gt; ✋보 &gt; ✊바위</b></li>
+          <li>이긴 공이 부딪힌 공을 <b>자기 편으로</b> 만듭니다.</li>
+          <li>같은 속성끼리는 그냥 튕기고, <b>중립(회색) 공에게 지면 내 공도 중립</b>이 됩니다.</li>
+        </ul>
+      </section>
+      <section class="rule-sec">
+        <h4>🎲 선공 정하기</h4>
+        <ul>
+          <li>시작 전 가위바위보로 선공을 정합니다 — 3초 안에 못 고르면 <b>기권패</b>!</li>
+        </ul>
+      </section>
+      <section class="rule-sec">
+        <h4>🕹️ 게임 모드</h4>
+        <ul>
+          <li><b>일반 모드</b> — 마지막 공이 잡히면 ♥-1 후 리스폰, ♥ 2개를 모두 잃으면 패배.</li>
+          <li><b>👑 킹볼 모드</b> — 왕관 공은 빼앗기지 않지만 피격마다 ♥-1 (♥3개). 속성 변경 아이템 1회.</li>
+        </ul>
+      </section>
+      <section class="rule-sec">
+        <h4>🎁 라운드 이벤트</h4>
+        <ul>
+          <li><b>🔀 3라운드</b>마다 중립 공 속성이 무작위로 바뀝니다 (직전 라운드에 예고).</li>
+          <li><b>🛟 5라운드</b>마다 열세 측에 유리한 중립 공 2개 + 💣 폭탄 공(부딪히면 폭발)이 난입.</li>
+          <li><b>⚡ 연속 공격</b>(열세일 때) · <b>🛡️ 실드</b>는 5라운드 이후 각자 1회.</li>
+        </ul>
+      </section>
+      <section class="rule-sec">
+        <h4>🏆 승리 조건</h4>
+        <ul>
+          <li>상대 공을 <b>모두 차지</b>하거나 상대 <b>♥를 모두</b> 없애면 승리.</li>
+          <li>20라운드 안에 안 끝나면 <b>공 개수 → 목숨</b> 순으로 판정.</li>
+        </ul>
+      </section>
     </div>
     <button class="big-btn" id="rules-close">닫기</button>
   </div>

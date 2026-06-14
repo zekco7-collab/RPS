@@ -148,6 +148,38 @@
   .mode-btn small,.net-btn small{display:block;margin-top:3px;font-size:11px;opacity:.6}
   .mode-btn:hover,.net-btn:hover{transform:translateY(-2px)}
   .mode-btn.sel,.net-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);box-shadow:0 0 16px -4px var(--neon)}
+  /* ---------- 메인 메뉴(싱글/멀티) ---------- */
+  .menu-cards{display:flex;gap:12px;justify-content:center;margin:26px 0 16px;flex-wrap:wrap}
+  .menu-card{
+    flex:1;min-width:150px;max-width:230px;
+    display:flex;flex-direction:column;align-items:center;gap:5px;
+    padding:24px 14px;border-radius:16px;cursor:pointer;
+    background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.12);
+    color:var(--paper);font:inherit;transition:.16s;
+  }
+  .menu-card:hover{transform:translateY(-3px);border-color:var(--neon);box-shadow:0 0 18px -4px var(--neon)}
+  .menu-card .mc-ico{font-size:34px;line-height:1}
+  .menu-card b{font-size:17px;letter-spacing:.5px}
+  .menu-card small{font-size:12px;opacity:.65}
+  .ghost-btn{
+    font:inherit;font-weight:700;font-size:14px;cursor:pointer;
+    padding:11px 24px;border-radius:999px;
+    background:transparent;border:1px solid rgba(255,255,255,.22);color:var(--paper);
+    transition:.15s;
+  }
+  .ghost-btn:hover{border-color:var(--neon);color:var(--neon)}
+  .config-head{display:flex;align-items:center;gap:10px;margin:18px 0 4px}
+  .back-btn{
+    font:inherit;font-size:18px;font-weight:800;cursor:pointer;
+    width:42px;height:42px;border-radius:12px;flex:none;line-height:1;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);color:var(--paper);
+    transition:.15s;
+  }
+  .back-btn:hover{border-color:var(--neon);color:var(--neon)}
+  #config-title{font-size:17px;font-weight:800;color:var(--neon);text-align:left}
+  .section-label{text-align:left;font-size:12px;font-weight:700;opacity:.55;letter-spacing:.5px;margin:16px 2px 6px}
+  #rules-title{font-size:21px;font-weight:900;color:var(--neon);margin-bottom:14px}
+  #rules .rules{margin-bottom:20px}
   /* ---------- 온라인 연결 패널 ---------- */
   #net-panel{margin:12px auto 0;font-size:14px}
   #room-code{color:var(--neon);font-size:21px;letter-spacing:5px;font-weight:900;vertical-align:middle}
@@ -257,42 +289,75 @@
   <div class="panel">
     <div class="neon-title">묵찌빠 당구</div>
     <div class="sub">가위바위보 상성으로 공을 빼앗는 턴제 당구</div>
-    <div class="modes" id="net-row">
-      <div class="net-btn sel" data-net="local"><b>📱 같은 기기</b><small>한 화면에서 번갈아 플레이</small></div>
-      <div class="net-btn" data-net="ai"><b>🤖 컴퓨터와 대전</b><small>혼자서 AI와 플레이</small></div>
-      <div class="net-btn" data-net="host"><b>🌐 방 만들기</b><small>코드를 만들어 상대에게 공유</small></div>
-      <div class="net-btn" data-net="join"><b>🔗 방 참가</b><small>상대의 코드로 접속</small></div>
-    </div>
-    <div id="net-panel" class="hidden">
-      <div id="net-host-ui" class="hidden">방 코드&nbsp; <b id="room-code">·····</b></div>
-      <div id="net-join-ui" class="hidden"><input id="join-code" maxlength="5" placeholder="코드"><button id="join-btn">접속</button></div>
-      <div id="net-status"></div>
-    </div>
-    <div id="ai-panel" class="hidden">
-      <div class="modes" id="ai-row">
-        <div class="mode-btn" data-ai="easy"><b>🟢 쉬움</b><small>실수가 잦아요</small></div>
-        <div class="mode-btn sel" data-ai="normal"><b>🟡 보통</b><small>적당한 실력</small></div>
-        <div class="mode-btn" data-ai="hard"><b>🔴 어려움</b><small>정확하게 노려요</small></div>
+
+    <!-- 1단계: 메인 메뉴 -->
+    <div id="menu-main">
+      <div class="menu-cards">
+        <button class="menu-card" id="btn-single"><span class="mc-ico">🤖</span><b>싱글플레이</b><small>컴퓨터와 대전</small></button>
+        <button class="menu-card" id="btn-multi"><span class="mc-ico">👥</span><b>멀티플레이</b><small>방 만들기 · 방 참가</small></button>
       </div>
+      <button class="ghost-btn" id="btn-rules">📖 게임 설명</button>
     </div>
-    <div class="modes" id="mode-row">
-      <div class="mode-btn sel" data-mode="normal"><b>일반 모드</b><small>♥2 · 마지막 공을 사수하세요</small></div>
-      <div class="mode-btn" data-mode="king"><b>👑 킹볼 모드</b><small>킹볼 ♥3 · 3번 피격당하면 패배</small></div>
+
+    <!-- 2단계: 설정 (싱글/멀티 공통) -->
+    <div id="menu-config" class="hidden">
+      <div class="config-head">
+        <button class="back-btn" id="btn-back" aria-label="뒤로">←</button>
+        <div id="config-title">싱글플레이</div>
+      </div>
+
+      <!-- 멀티 전용: 방 만들기 / 참가 -->
+      <div id="multi-controls" class="hidden">
+        <div class="modes" id="net-row">
+          <div class="net-btn" data-net="host"><b>🌐 방 만들기</b><small>코드를 만들어 상대에게 공유</small></div>
+          <div class="net-btn" data-net="join"><b>🔗 방 참가</b><small>상대의 코드로 접속</small></div>
+        </div>
+        <div id="net-panel" class="hidden">
+          <div id="net-host-ui" class="hidden">방 코드&nbsp; <b id="room-code">·····</b></div>
+          <div id="net-join-ui" class="hidden"><input id="join-code" maxlength="5" placeholder="코드"><button id="join-btn">접속</button></div>
+          <div id="net-status"></div>
+        </div>
+      </div>
+
+      <!-- 싱글 전용: 난이도 -->
+      <div id="ai-panel" class="hidden">
+        <div class="section-label">컴퓨터 난이도</div>
+        <div class="modes" id="ai-row">
+          <div class="mode-btn" data-ai="easy"><b>🟢 쉬움</b><small>실수가 잦아요</small></div>
+          <div class="mode-btn sel" data-ai="normal"><b>🟡 보통</b><small>적당한 실력</small></div>
+          <div class="mode-btn" data-ai="hard"><b>🔴 어려움</b><small>정확하게 노려요</small></div>
+        </div>
+      </div>
+
+      <div class="section-label">모드</div>
+      <div class="modes" id="mode-row">
+        <div class="mode-btn sel" data-mode="normal"><b>일반 모드</b><small>♥2 · 마지막 공을 사수하세요</small></div>
+        <div class="mode-btn" data-mode="king"><b>👑 킹볼 모드</b><small>킹볼 ♥3 · 3번 피격당하면 패배</small></div>
+      </div>
+      <div class="section-label">맵</div>
+      <div class="maps">
+        <div class="map-btn sel" data-map="hex">
+          <svg width="54" height="54" viewBox="0 0 54 54"><polygon points="40.5,3.6 13.5,3.6 0,27 13.5,50.4 40.5,50.4 54,27" transform="scale(.92) translate(2.3 2.3)" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+          <span>육각</span>
+        </div>
+        <div class="map-btn" data-map="rect">
+          <svg width="54" height="54" viewBox="0 0 54 54"><rect x="3" y="13" width="48" height="28" rx="9" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+          <span>당구대</span>
+        </div>
+        <div class="map-btn" data-map="circle">
+          <svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
+          <span>원형</span>
+        </div>
+      </div>
+      <button class="big-btn" id="start-btn">게임 시작</button>
     </div>
-    <div class="maps">
-      <div class="map-btn sel" data-map="hex">
-        <svg width="54" height="54" viewBox="0 0 54 54"><polygon points="40.5,3.6 13.5,3.6 0,27 13.5,50.4 40.5,50.4 54,27" transform="scale(.92) translate(2.3 2.3)" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
-        <span>육각</span>
-      </div>
-      <div class="map-btn" data-map="rect">
-        <svg width="54" height="54" viewBox="0 0 54 54"><rect x="3" y="13" width="48" height="28" rx="9" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
-        <span>당구대</span>
-      </div>
-      <div class="map-btn" data-map="circle">
-        <svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="none" stroke="#ffd166" stroke-width="3"/></svg>
-        <span>원형</span>
-      </div>
-    </div>
+  </div>
+</div>
+
+<!-- 게임 설명 -->
+<div class="overlay hidden" id="rules">
+  <div class="panel">
+    <div id="rules-title">📖 게임 설명</div>
     <div class="rules">
       🎲 시작 전 가위바위보로 선공을 정합니다 — 3초 안에 못 고르면 기권패!<br>
       ✊바위 &gt; ✌️가위 &gt; ✋보 &gt; ✊바위 — 이기는 공이 진 공을 자기 편으로 만듭니다.<br>
@@ -304,7 +369,7 @@
       ⚡ 연속 공격(열세일 때)과 🛡️ 실드는 5라운드 이후 각자 1회 쓸 수 있습니다.<br>
       20라운드 안에 끝나지 않으면 공 개수 → 목숨 순으로 판정합니다.
     </div>
-    <button class="big-btn" id="start-btn">게임 시작</button>
+    <button class="big-btn" id="rules-close">닫기</button>
   </div>
 </div>
 
@@ -477,7 +542,7 @@ let itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
 let firstPlayer = 0;     // 선공 — 시작 전 가위바위보로 결정
 
 /* ---------- 온라인 상태 ---------- */
-let netMode = 'local';   // 시작 화면 선택: local | host | join
+let netMode = '';        // 시작 화면 선택: '' | ai | host | join
 let net = null;          // 연결 후 역할: null | 'host' | 'guest'
 let myIdx = 0;           // 온라인에서 내 플레이어 번호 (host=0, guest=1)
 let peer = null, conn = null;
@@ -1480,9 +1545,10 @@ document.querySelectorAll('#mode-row .mode-btn').forEach(btn =>
     if (net === 'host') netSend({t:'config', map:mapKey, mode:gameMode});
   }));
 document.getElementById('start-btn').addEventListener('click', () => {
-  const offline = (netMode === 'local' || netMode === 'ai');
-  if (!offline && !(conn && conn.open)){
-    setNetStatus('⚠️ 아직 상대가 연결되지 않았습니다');
+  if (netMode !== 'ai' && !(conn && conn.open)){
+    setNetStatus(netMode === 'host' || netMode === 'join'
+      ? '⚠️ 아직 상대가 연결되지 않았습니다'
+      : '⚠️ 방 만들기 또는 방 참가를 선택하세요');
     return;
   }
   vsAI = (netMode === 'ai');
@@ -1710,12 +1776,23 @@ function teardownNet(){
   setNetNames();
 }
 function returnToSetup(){
+  $id('rules').classList.add('hidden');
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');
   $id('setup').classList.remove('hidden');
   phase = 'setup';
-  if (net === 'guest') setNetStatus('✅ 연결됨! 호스트가 게임을 시작하길 기다리는 중...');
-  else if (net === 'host') setNetStatus('✅ 상대 연결됨! 게임을 시작하세요');
+  if (net){
+    // 온라인: 연결 유지한 채 멀티 설정 화면으로
+    $id('menu-main').classList.add('hidden');
+    $id('menu-config').classList.remove('hidden');
+    $id('multi-controls').classList.remove('hidden');
+    $id('ai-panel').classList.add('hidden');
+    $id('config-title').textContent = '👥 멀티플레이';
+    if (net === 'guest') setNetStatus('✅ 연결됨! 호스트가 게임을 시작하길 기다리는 중...');
+    else setNetStatus('✅ 상대 연결됨! 게임을 시작하세요');
+  } else {
+    showMainMenu();
+  }
 }
 function makeCode(){
   const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';      // 헷갈리는 글자(I,L,O,0,1) 제외
@@ -1772,15 +1849,47 @@ function joinRoom(){
   });
 }
 
-/* ---------- 네트워크 UI ---------- */
+/* ---------- 메인 메뉴 네비게이션 ---------- */
+function showMainMenu(){
+  $id('menu-config').classList.add('hidden');
+  $id('menu-main').classList.remove('hidden');
+}
+function enterSingle(){
+  teardownNet();
+  vsAI = true; netMode = 'ai';
+  setNetNames();
+  $id('config-title').textContent = '🤖 싱글플레이 — 컴퓨터와 대전';
+  $id('multi-controls').classList.add('hidden');
+  $id('ai-panel').classList.remove('hidden');
+  $id('menu-main').classList.add('hidden');
+  $id('menu-config').classList.remove('hidden');
+}
+function enterMulti(){
+  vsAI = false; netMode = '';
+  setNetNames();
+  $id('config-title').textContent = '👥 멀티플레이';
+  $id('ai-panel').classList.add('hidden');
+  $id('multi-controls').classList.remove('hidden');
+  document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('sel'));
+  $id('net-panel').classList.add('hidden');
+  setNetStatus('');
+  $id('menu-main').classList.add('hidden');
+  $id('menu-config').classList.remove('hidden');
+}
+$id('btn-single').addEventListener('click', enterSingle);
+$id('btn-multi').addEventListener('click', enterMulti);
+$id('btn-back').addEventListener('click', () => { vsAI = false; netMode = ''; teardownNet(); setNetStatus(''); showMainMenu(); });
+$id('btn-rules').addEventListener('click', () => $id('rules').classList.remove('hidden'));
+$id('rules-close').addEventListener('click', () => $id('rules').classList.add('hidden'));
+
+/* ---------- 네트워크 UI (방 만들기 / 참가) ---------- */
 document.querySelectorAll('.net-btn').forEach(btn => btn.addEventListener('click', () => {
   if (btn.dataset.net === netMode) return;
   teardownNet();
   netMode = btn.dataset.net;
-  vsAI = (netMode === 'ai');
+  vsAI = false;
   document.querySelectorAll('.net-btn').forEach(b => b.classList.toggle('sel', b === btn));
-  $id('net-panel').classList.toggle('hidden', netMode === 'local' || netMode === 'ai');
-  $id('ai-panel').classList.toggle('hidden', netMode !== 'ai');
+  $id('net-panel').classList.remove('hidden');
   $id('net-host-ui').classList.toggle('hidden', netMode !== 'host');
   $id('net-join-ui').classList.toggle('hidden', netMode !== 'join');
   setNetStatus('');

@@ -267,6 +267,24 @@
     padding:8px 22px;border-radius:999px;transition:.15s;
   }
   #pick-cancel:hover{border-color:var(--neon);color:var(--neon)}
+  /* 선공 결과 공개 */
+  #pick-reveal{display:none}
+  #pick.revealing #pick-reveal{display:block}
+  #pick.revealing #pick-warn,
+  #pick.revealing #pick-timer,
+  #pick.revealing .pick-row,
+  #pick.revealing #pick-sub,
+  #pick.revealing #pick-cancel{display:none}
+  .reveal-hands{display:flex;align-items:center;justify-content:center;gap:20px;margin:18px 0 8px}
+  .reveal-slot{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .rs-label{font-size:13px;font-weight:800;letter-spacing:.5px;opacity:.9}
+  .rs-icon{font-size:58px;line-height:1;animation:revealpop .35s ease-out}
+  .reveal-vs{font-size:18px;font-weight:900;color:var(--neon);opacity:.75}
+  .reveal-result{font-size:25px;font-weight:900;margin-top:10px;min-height:30px}
+  .reveal-result.win{color:#5dff9b;text-shadow:0 0 18px rgba(93,255,155,.55)}
+  .reveal-result.lose{color:#ff6b6b}
+  .reveal-result.draw{color:var(--neon)}
+  @keyframes revealpop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1)}}
   /* 시작 속성 선택: 보드가 보이도록 반투명 + 하단 배치 */
   #pick.peek{align-items:flex-end;background:rgba(8,12,11,.25);backdrop-filter:none}
   #pick.peek .panel{margin-bottom:16px;padding:18px 20px 16px;width:min(92vw,460px)}
@@ -459,6 +477,15 @@
     </div>
     <div id="pick-sub">시간 안에 고르지 않으면 무작위로 선택됩니다</div>
     <button id="pick-cancel" class="hidden">취소</button>
+    <!-- 선공 가위바위보 결과 공개 -->
+    <div id="pick-reveal">
+      <div class="reveal-hands">
+        <div class="reveal-slot"><div class="rs-label" id="rs-me-label">나</div><div class="rs-icon" id="rs-me">✊</div></div>
+        <div class="reveal-vs">VS</div>
+        <div class="reveal-slot"><div class="rs-label" id="rs-op-label">상대</div><div class="rs-icon" id="rs-op">✌️</div></div>
+      </div>
+      <div class="reveal-result" id="reveal-result">승리!</div>
+    </div>
   </div>
 </div>
 
@@ -503,6 +530,8 @@ const W = cv.width, H = cv.height;
 const CX = W/2, CY = H/2;
 
 const BALL_R = 20, BUMPER_R = 30;
+const KING_R = 27;       // 👑 킹볼은 조금 더 크게
+const ballR = b => (b && b.isKing) ? KING_R : BALL_R;
 const FRICTION = 0.992, STOP_V = 0.04;
 const MAX_PULL = 190, MAX_POW = 5.2;
 const ROUND_LIMIT = 20;
@@ -719,7 +748,7 @@ function newGame(){
   for (let p=0;p<2;p++){
     balls.push({x:spawns[p].x, y:spawns[p].y, vx:0, vy:0,
                 owner:p, attr:-1, protUntil: p===1 ? 1 : 0,
-                isKing: gameMode === 'king'});
+                isKing: gameMode === 'king', revealed: false});
   }
   // 중립 공 속성 풀 — 세 종류가 최소 1개씩은 반드시 포함
   const pool = [0,1,2];
@@ -824,12 +853,13 @@ function physicsStep(){
       const q = closestOnSeg(b.x,b.y,a.x,a.y,c.x,c.y);
       let dx=b.x-q.x, dy=b.y-q.y;
       const d = Math.hypot(dx,dy);
-      if (d < BALL_R && d > 0.0001){
+      const br = ballR(b);
+      if (d < br && d > 0.0001){
         // 법선 방향이 폴리곤 안쪽을 향하도록
         const tx = b.x + dx/d*0.5, ty = b.y + dy/d*0.5;
         const s = pointInPoly(tx,ty,verts) ? 1 : -1;
         const nx = dx/d*s, ny = dy/d*s;
-        b.x = q.x + nx*BALL_R; b.y = q.y + ny*BALL_R;
+        b.x = q.x + nx*br; b.y = q.y + ny*br;
         const vn = b.vx*nx + b.vy*ny;
         if (vn < 0){
           b.vx -= 2*vn*nx; b.vy -= 2*vn*ny;
@@ -842,7 +872,7 @@ function physicsStep(){
   // 범퍼
   for (const b of balls){
     for (const u of bumpers){
-      const dx=b.x-u.x, dy=b.y-u.y, d=Math.hypot(dx,dy), min=BALL_R+u.r;
+      const dx=b.x-u.x, dy=b.y-u.y, d=Math.hypot(dx,dy), min=ballR(b)+u.r;
       if (d < min && d > 0.0001){
         const nx=dx/d, ny=dy/d;
         b.x = u.x + nx*min; b.y = u.y + ny*min;
@@ -859,7 +889,7 @@ function physicsStep(){
   const exploding = new Set();
   for (let i=0;i<balls.length;i++) for (let j=i+1;j<balls.length;j++){
     const a=balls[i], b=balls[j];
-    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy), min=BALL_R*2;
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy), min=ballR(a)+ballR(b);
     if (d < min && d > 0.0001){
       const nx=dx/d, ny=dy/d, push=(min-d)/2;
       a.x -= nx*push; a.y -= ny*push;
@@ -897,6 +927,9 @@ function resolveBattle(a, b, impact){
   if (phase === 'over') return;
   if (a.bomb || b.bomb) return;                  // 폭탄은 상성 없음 (충돌 시 폭발)
   if (a.owner === b.owner) return;
+  // 👑 킹볼이 전투에 참여 → 가려졌던 속성 공개
+  if (a.isKing) a.revealed = true;
+  if (b.isKing) b.revealed = true;
   if (a.attr === b.attr) return;                 // 비김 → 튕기기만
   const [win, lose] = beats(a.attr, b.attr) ? [a,b] : [b,a];
   if (isProtected(lose)){
@@ -918,6 +951,7 @@ function resolveBattle(a, b, impact){
     const s = spawns[p];
     lose.x = s.x; lose.y = s.y; lose.vx = 0; lose.vy = 0;
     lose.attr = Math.floor(Math.random()*3);
+    lose.revealed = false;                       // 리스폰하며 속성 다시 숨김
     lose.protUntil = shotCount + 3;              // 리스폰 보호
     for (const o of balls){
       if (o !== lose && Math.hypot(o.x-lose.x, o.y-lose.y) < BALL_R*2.2){
@@ -1084,6 +1118,7 @@ function aiShoot(){
     for (const t of balls){
       if (t === a || t.bomb || t.owner === aiIdx) continue;
       if (t.attr < 0 || shotCount < t.protUntil) continue;   // isProtected
+      if (t.isKing && !t.revealed) continue;                 // 가려진 킹볼 속성은 모름 (공정)
       if (!beats(a.attr, t.attr)) continue;                  // 이길 수 있어야
       let score = Math.hypot(t.x-a.x, t.y-a.y);
       if (t.owner === 0) score -= 250;                       // 사람 공 우선
@@ -1283,6 +1318,7 @@ function startPick(mode){
   if (mode === 'deadlock') setMsg('⚖️ 교착 상태! 모든 공의 속성이 같습니다');
   pickState = { mode, who:0, picks:[null,null], timer:null };
   document.getElementById('pick-cancel').classList.add('hidden');
+  document.getElementById('pick').classList.remove('revealing');
   document.getElementById('pick').classList.toggle('peek', mode === 'start');
   document.querySelector('.pick-row').classList.remove('waiting');
   if (net){
@@ -1321,10 +1357,14 @@ function showPickFor(p){
     : '⚠️ 상대 플레이어는 화면을 보지 마세요!';
   ov.classList.remove('hidden');
   if (pickState.mode === 'start'){
-    document.getElementById('pick-sub').textContent =
-      (net && pickState.picks[1-myIdx] !== null)
-        ? '상대는 선택을 마쳤습니다 — 중립 공 배치를 보고 결정하세요'
-        : '중립 공 배치를 보고 천천히 결정하세요';
+    // 📱 모바일에서 중립 공 속성이 잘 안 보이므로 분포를 숫자로 안내
+    const cnt = [0,0,0];
+    for (const bb of balls){ if (bb.owner === NEUTRAL && !bb.bomb && bb.attr >= 0) cnt[bb.attr]++; }
+    document.getElementById('pick-sub').innerHTML =
+      `<b style="color:var(--neon);font-size:15px">중립 공 — ✊${cnt[0]}　✌️${cnt[1]}　✋${cnt[2]}</b>` +
+      (net && pickState.picks[1-myIdx] !== null
+        ? '<br><span style="opacity:.7">상대는 선택을 마쳤습니다</span>'
+        : '<br><span style="opacity:.7">많은 쪽을 이기는 속성을 고르면 유리해요</span>');
     return; // 시작 선택은 타이머 없음
   }
   document.getElementById('pick-sub').textContent = isOrder
@@ -1351,8 +1391,8 @@ function forfeitOrder(){
   if (pickState.timer) clearInterval(pickState.timer);
   pickState.timer = null;
   const loser = pickState.who;
-  document.getElementById('pick').classList.add('hidden');
-  resolveOrder(1 - loser, `⏰ ${OWNER_NAME[loser]} 시간 초과 — 기권패`);
+  showOrderReveal(loser === 0 ? -1 : pickState.picks[0],
+                  loser === 1 ? -1 : pickState.picks[1]);
 }
 function resolveOrder(winner, detail){
   firstPlayer = winner;
@@ -1364,6 +1404,54 @@ function resolveOrder(winner, detail){
   setMsg(`🎲 ${detail} — ${OWNER_NAME[winner]} 선공!`);
   updateHud();
   setTimeout(()=> startPick('start'), 1100);
+}
+const pickIcon = x => (x === 0 || x === 1 || x === 2) ? ATTR_ICON[x] : (x === -1 ? '⏰' : '?');
+// 선공 가위바위보 결과 공개 — 내 것과 상대 것을 나란히 보여주고 승/무/패 표시
+function showOrderReveal(a, b){
+  if (pickState && pickState.timer){ clearInterval(pickState.timer); pickState.timer = null; }
+  const ov = document.getElementById('pick');
+  ov.classList.remove('hidden','peek');
+  ov.classList.add('revealing');
+  document.getElementById('pick-who').textContent = '✊✌️✋ 선공 가위바위보';
+  document.getElementById('pick-who').style.color = 'var(--neon)';
+
+  const localMode = !net && !vsAI;
+  const meIdx = net ? myIdx : 0;                 // vsAI: 사람 = P1(0)
+  const leftPick  = localMode ? a : (meIdx === 0 ? a : b);
+  const rightPick = localMode ? b : (meIdx === 0 ? b : a);
+  const meLabel = document.getElementById('rs-me-label'), opLabel = document.getElementById('rs-op-label');
+  meLabel.textContent = localMode ? 'PLAYER 1' : '나';
+  opLabel.textContent = localMode ? 'PLAYER 2' : '상대';
+  meLabel.style.color = localMode ? OWNER_COLOR[0] : 'var(--paper)';
+  opLabel.style.color = localMode ? OWNER_COLOR[1] : 'var(--paper)';
+  const meIcon = document.getElementById('rs-me'), opIcon = document.getElementById('rs-op');
+  meIcon.textContent = pickIcon(leftPick);
+  opIcon.textContent = pickIcon(rightPick);
+  [meIcon, opIcon].forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+
+  const bothForfeit = (a === -1 && b === -1);
+  const draw = !bothForfeit && (a === b) && a !== -1;
+  let winner = null;
+  if (!bothForfeit && !draw){
+    if (a === -1) winner = 1; else if (b === -1) winner = 0;
+    else winner = beats(a, b) ? 0 : 1;
+  }
+  const res = document.getElementById('reveal-result');
+  let txt, cls;
+  if (bothForfeit){ txt = '⏰ 둘 다 시간 초과 — 다시!'; cls = 'draw'; }
+  else if (draw){ txt = `🤝 둘 다 ${ATTR_NAME[a]} — 무승부! 다시`; cls = 'draw'; }
+  else if (localMode){ txt = `🎉 ${OWNER_NAME[winner]} 선공!`; cls = 'win'; }
+  else { const iWon = winner === meIdx; txt = iWon ? '🎉 승리 — 내가 선공!' : '😢 패배 — 상대 선공'; cls = iWon ? 'win' : 'lose'; }
+  res.textContent = txt;
+  res.className = 'reveal-result ' + cls;
+  res.style.color = (localMode && cls === 'win') ? OWNER_COLOR[winner] : '';
+  blip(cls === 'win' ? 820 : (cls === 'lose' ? 200 : 520), .13, .3);
+
+  setTimeout(() => {
+    ov.classList.remove('revealing');
+    if (bothForfeit || draw){ startPick('order'); }
+    else { resolveOrder(winner, `${pickIcon(a)} vs ${pickIcon(b)}`); }
+  }, (bothForfeit || draw) ? 1600 : 2100);
 }
 function submitPick(attr){
   if (pickState.timer) clearInterval(pickState.timer);
@@ -1378,9 +1466,10 @@ function submitPick(attr){
     if (king){
       itemUsed.king[p] = true;
       king.attr = attr;
+      king.revealed = false;                     // 바꾼 속성도 공개 전까지 '?'
       blip(880,.1,.2); blip(1240,.08,.3);
       spawnParticles(king.x, king.y, '#ffd166', 24);
-      setMsg(`👑 ${OWNER_NAME[p]} 킹볼 속성 변경 → ${ATTR_ICON[attr]} ${ATTR_NAME[attr]}`);
+      setMsg(`👑 ${OWNER_NAME[p]} 킹볼 속성 변경 완료 — 상대에겐 ? 로 숨겨집니다`);
       if (net) netSend({t:'item', kind:'king', p, attr});
     }
     return;
@@ -1390,18 +1479,13 @@ function submitPick(attr){
     showPickFor(1);
     return;
   }
-  document.getElementById('pick').classList.add('hidden');
   const [a,b] = pickState.picks;
-  // 선공 결정: 이긴 사람 선공, 무승부면 재대결
+  // 선공 결정: 결과 공개 화면으로 (승/무/패 표시)
   if (pickState.mode === 'order'){
-    if (a === b){
-      setMsg(`🤝 둘 다 ${ATTR_NAME[a]}! 무승부 — 다시 정합니다`);
-      setTimeout(()=> startPick('order'), 900);
-      return;
-    }
-    resolveOrder(beats(a,b) ? 0 : 1, `${ATTR_ICON[a]} vs ${ATTR_ICON[b]}`);
+    showOrderReveal(a, b);
     return;
   }
+  document.getElementById('pick').classList.add('hidden');
   if (pickState.mode === 'start'){
     // 시작 선택: 같은 속성도 허용, 각자 자기 공에 적용
     for (const ball of balls){
@@ -1588,62 +1672,65 @@ function draw(){
   // 공
   const _lv = gameMode === 'king' ? kingLives : lives;
   for (const b of balls){
+    const r = ballR(b);                       // 👑 킹볼은 더 크게
     // 그림자
-    ctx.beginPath(); ctx.arc(b.x+3, b.y+5, BALL_R, 0, 7);
+    ctx.beginPath(); ctx.arc(b.x+3, b.y+5, r, 0, 7);
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill();
     // ⚠️ 위험한 공 — 잃으면 게임이 끝나는 공에 붉은 맥동 링
     if (!b.bomb && b.owner !== NEUTRAL){
       const lastBall = gameMode === 'king' ? b.isKing : countBalls(b.owner) === 1;
       if (lastBall && (suddenDeath || _lv[b.owner] <= 1)){
         const pl = 0.5 + 0.5*Math.sin(performance.now()/180);
-        ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R + 6 + pl*4, 0, 7);
+        ctx.beginPath(); ctx.arc(b.x, b.y, r + 6 + pl*4, 0, 7);
         ctx.strokeStyle = `rgba(255,55,55,${0.35 + pl*0.45})`;
         ctx.lineWidth = 3; ctx.stroke();
       }
     }
     // 💣 폭탄 공 — 어두운 몸체 + 붉게 깜빡이는 링
     if (b.bomb){
-      const bg = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,BALL_R);
+      const bg = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,r);
       bg.addColorStop(0,'#5a6066'); bg.addColorStop(1,'#1d2125');
-      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R,0,7);
+      ctx.beginPath(); ctx.arc(b.x,b.y,r,0,7);
       ctx.fillStyle = bg; ctx.fill();
       const pulse = .55 + Math.sin(performance.now()/150)*.35;
       ctx.lineWidth = 4.5;
       ctx.strokeStyle = `rgba(255,92,92,${pulse})`;
       ctx.stroke();
-      drawIcon('💣', b.x, b.y+1, Math.round(BALL_R*1.05), '#f2ede1');
+      drawIcon('💣', b.x, b.y+1, Math.round(r*1.05), '#f2ede1');
       continue;
     }
     // 본체
-    const g = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,BALL_R);
+    const g = ctx.createRadialGradient(b.x-5,b.y-6,3, b.x,b.y,r);
     g.addColorStop(0,'#ffffff'); g.addColorStop(.25,'#f2ede1'); g.addColorStop(1,'#cfc8b8');
-    ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R,0,7);
+    ctx.beginPath(); ctx.arc(b.x,b.y,r,0,7);
     ctx.fillStyle = g; ctx.fill();
     // 소유 컬러 링
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = OWNER_COLOR[b.owner];
     ctx.stroke();
-    // 속성 아이콘 — measureText로 중앙 정렬, 단색으로 빠져도 보이도록 어두운 색
-    drawIcon(b.attr >= 0 ? ATTR_ICON[b.attr] : '?', b.x, b.y+1, Math.round(BALL_R*1.15), '#15110b');
+    // 속성 아이콘 — 킹볼은 공개 전까지 '?'로 숨김
+    const hideAttr = b.isKing && !b.revealed;
+    drawIcon(hideAttr ? '?' : (b.attr >= 0 ? ATTR_ICON[b.attr] : '?'),
+             b.x, b.y+1, Math.round(r*1.05), hideAttr ? '#ffd166' : '#15110b');
     // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관
     if (b.isKing){
-      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+3.5,0,7);
+      ctx.beginPath(); ctx.arc(b.x,b.y,r+3.5,0,7);
       ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 2; ctx.stroke();
-      drawIcon('👑', b.x, b.y - BALL_R - 12, Math.round(BALL_R*0.62), '#ffd166');
+      drawIcon('👑', b.x, b.y - r - 12, Math.round(r*0.55), '#ffd166');
     }
     // 보호막
     if (isProtected(b)){
       ctx.save();
       ctx.setLineDash([4,5]);
       ctx.lineDashOffset = -performance.now()/40;
-      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+6,0,7);
+      ctx.beginPath(); ctx.arc(b.x,b.y,r+6,0,7);
       ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=2; ctx.stroke();
       ctx.restore();
     }
     // 선택 표시
     if (phase==='aim' && b===selected && b.owner===cur()){
       const pulse = 3 + Math.sin(performance.now()/180)*2;
-      ctx.beginPath(); ctx.arc(b.x,b.y,BALL_R+8+pulse,0,7);
+      ctx.beginPath(); ctx.arc(b.x,b.y,r+8+pulse,0,7);
       ctx.strokeStyle = OWNER_COLOR[cur()]; ctx.lineWidth=2;
       ctx.globalAlpha=.7; ctx.stroke(); ctx.globalAlpha=1;
     }
@@ -1738,7 +1825,7 @@ function setNetNames(){
 }
 function snapBalls(){
   return balls.map(b => ({x:+b.x.toFixed(1), y:+b.y.toFixed(1), owner:b.owner, attr:b.attr,
-                          protUntil:b.protUntil, isKing:!!b.isKing, bomb:!!b.bomb}));
+                          protUntil:b.protUntil, isKing:!!b.isKing, bomb:!!b.bomb, revealed:!!b.revealed}));
 }
 // 양쪽이 같은 값을 얻는 결정적 의사난수 — 교착 해소 시 중립 공 속성용
 function hashRand(...nums){
@@ -1793,19 +1880,12 @@ function resolveNetPicks(){
   if (pickState.timer) clearInterval(pickState.timer);
   const st = pickState; pickState = null;
   const [a, b] = st.picks;                                 // a = P1 선택, b = P2 선택
-  $id('pick').classList.add('hidden');
   document.querySelector('.pick-row').classList.remove('waiting');
   if (st.mode === 'order'){
-    if (a === -1 && b === -1){ setMsg('⏰ 둘 다 시간 초과 — 다시 정합니다'); setTimeout(()=> startPick('order'), 900); return; }
-    if (a === -1 || b === -1){
-      const loser = a === -1 ? 0 : 1;
-      resolveOrder(1-loser, `⏰ ${OWNER_NAME[loser]} 시간 초과 — 기권패`);
-      return;
-    }
-    if (a === b){ setMsg(`🤝 둘 다 ${ATTR_NAME[a]}! 무승부 — 다시 정합니다`); setTimeout(()=> startPick('order'), 900); return; }
-    resolveOrder(beats(a,b) ? 0 : 1, `${ATTR_ICON[a]} vs ${ATTR_ICON[b]}`);
+    showOrderReveal(a, b);                                  // 결과 공개 화면 (승/무/패)
     return;
   }
+  $id('pick').classList.add('hidden');
   if (st.mode === 'start'){
     for (const ball of balls){
       if (ball.owner !== NEUTRAL) ball.attr = st.picks[ball.owner];
@@ -1844,9 +1924,9 @@ function applyRemoteItem(d){
   } else if (d.kind === 'king'){
     itemUsed.king[d.p] = true;
     const k = balls.find(b => b.isKing && b.owner === d.p);
-    if (k){ k.attr = d.attr; spawnParticles(k.x, k.y, '#ffd166', 24); }
+    if (k){ k.attr = d.attr; k.revealed = false; spawnParticles(k.x, k.y, '#ffd166', 24); }
     blip(880,.1,.2);
-    setMsg(`👑 ${OWNER_NAME[d.p]} 킹볼 속성 변경 → ${ATTR_ICON[d.attr]} ${ATTR_NAME[d.attr]}`);
+    setMsg(`👑 ${OWNER_NAME[d.p]} 킹볼 속성 변경 — ? 로 숨겨졌습니다`);
   }
 }
 function onNetData(d){

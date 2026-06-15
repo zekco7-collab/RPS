@@ -1792,6 +1792,8 @@ function draw(){
 
   // 공
   const _lv = gameMode === 'king' ? kingLives : lives;
+  // 킹볼 속성은 '내' 것만 보이고 상대 것은 ? (전투로 공개되면 모두에게 보임)
+  const _viewer = net ? myIdx : (vsAI ? 0 : cur());
   for (const b of balls){
     const r = ballR(b);                       // 👑 킹볼은 더 크게
     // 그림자
@@ -1829,8 +1831,8 @@ function draw(){
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = OWNER_COLOR[b.owner];
     ctx.stroke();
-    // 속성 아이콘 — 킹볼은 공개 전까지 '?'로 숨김
-    const hideAttr = b.isKing && !b.revealed;
+    // 속성 아이콘 — 상대 킹볼만 공개 전까지 '?'로 숨김 (내 킹볼은 항상 보임)
+    const hideAttr = b.isKing && !b.revealed && b.owner !== _viewer;
     drawIcon(hideAttr ? '?' : (b.attr >= 0 ? ATTR_ICON[b.attr] : '?'),
              b.x, b.y+1, Math.round(r*1.05), hideAttr ? '#ffd166' : '#15110b');
     // 👑 킹볼 — 금색 이중 링 + 머리 위 왕관

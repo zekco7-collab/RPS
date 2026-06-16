@@ -50,6 +50,9 @@
   }
   .player-card.right{flex-direction:row-reverse;text-align:right}
   .player-card.active{border-color:currentColor;box-shadow:0 0 18px -4px currentColor}
+  /* 🏆 미션(솔로): 상대 카드·목숨 숨김 */
+  body.solo #card2{visibility:hidden}
+  body.solo .plives{display:none}
   /* 목숨 감소 시 카드 진동 + 붉은 섬광 */
   .player-card.hit{animation:cardhit .55s ease-out}
   @keyframes cardhit{
@@ -592,6 +595,7 @@
     <div id="end-title">PLAYER 1 승리!</div>
     <div id="end-detail"></div>
     <button class="big-btn" id="restart-btn">다시 하기</button>
+    <button class="ghost-btn hidden" id="mission-list-btn" style="margin-top:12px">미션 목록</button>
   </div>
 </div>
 
@@ -765,26 +769,27 @@ const AI_CFG = {
   normal: { noise:0.10, randTarget:0.0, powJitter:0.18 },
   hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
 };
-// 🏆 미션 1~10탄 — 맵·모드·난이도 (점점 어려워짐)
+// 🏆 미션 1~10탄 — 혼자 푸는 연쇄(체인) 퍼즐
+//   내 공(주먹)으로 한 번 쳐서 주먹→가위→보→주먹… 줄지어 선 공을 연쇄로 모두 잡는다.
+//   n = 공 개수, ang = 줄의 각도(라디안), gap = 공 간격
 const MISSIONS = [
-  { map:'hex',    mode:'normal', ai:'easy',   desc:'육각 코트에서 가볍게 몸풀기' },
-  { map:'circle', mode:'normal', ai:'easy',   desc:'원형 코트에 적응하기' },
-  { map:'rect',   mode:'normal', ai:'normal', desc:'당구대에서 정교한 한 방' },
-  { map:'hex',    mode:'king',   ai:'easy',   desc:'킹볼 모드 첫 도전' },
-  { map:'circle', mode:'normal', ai:'normal', desc:'중립 공 쟁탈전' },
-  { map:'rect',   mode:'king',   ai:'normal', desc:'당구대 킹볼 수성전' },
-  { map:'hex',    mode:'normal', ai:'hard',   desc:'강한 컴퓨터와 정면승부' },
-  { map:'circle', mode:'king',   ai:'hard',   desc:'원형 킹볼 혈투' },
-  { map:'rect',   mode:'normal', ai:'hard',   desc:'데스매치를 각오하라' },
-  { map:'hex',    mode:'king',   ai:'hard',   desc:'최종 보스 — 킹볼을 사수하라!' },
+  { n:3,  ang:0,      gap:58, desc:'주먹으로 가위·보를 한 번에!' },
+  { n:4,  ang:0,      gap:58, desc:'주먹 → 가위 → 보 → 주먹 연쇄' },
+  { n:5,  ang:0,      gap:58, desc:'일직선 5연쇄' },
+  { n:6,  ang:0,      gap:56, desc:'더 긴 일직선' },
+  { n:5,  ang:-0.45,  gap:58, desc:'비스듬한 줄 — 조준 연습' },
+  { n:7,  ang:0,      gap:54, desc:'7연쇄' },
+  { n:6,  ang:0.6,    gap:56, desc:'대각선 연쇄' },
+  { n:8,  ang:0,      gap:52, desc:'8연쇄' },
+  { n:7,  ang:-0.7,   gap:55, desc:'가파른 대각선' },
+  { n:10, ang:0,      gap:50, desc:'최종 — 10연쇄!' },
 ];
 let currentMission = -1; // 진행 중인 미션 인덱스 (-1: 자유 대전)
+let solo = false;        // 혼자 푸는 미션 모드
 let singleTab = 'free';  // 싱글 화면 탭: free | mission
-const MAP_KOR = { hex:'육각', rect:'당구대', circle:'원형' };
-const AI_KOR  = { easy:'쉬움', normal:'보통', hard:'어려움' };
 function missionsCleared(){ try{ return +(localStorage.getItem('rps_missions')||0); }catch(e){ return 0; } }
 
-const cur = () => (shotCount + turnFlip + firstPlayer) % 2;
+const cur = () => solo ? 0 : (shotCount + turnFlip + firstPlayer) % 2;
 const countBalls = o => balls.reduce((n,b)=> n + (b.owner===o), 0);
 const isProtected = b => shotCount < b.protUntil;
 
@@ -866,10 +871,32 @@ function resetMatchState(){
   if (aiTimer){ clearTimeout(aiTimer); aiTimer = null; }
   setNetNames();
 }
+// 🏆 미션(솔로) 공 배치 — 한 줄로 늘어선 연쇄 퍼즐
+function buildMissionBalls(){
+  const m = MISSIONS[currentMission];
+  const ux = Math.cos(m.ang), uy = Math.sin(m.ang), off = (m.n - 1) / 2;
+  for (let k=0;k<m.n;k++){
+    const x = CX + (k - off)*m.gap*ux;
+    const y = CY + (k - off)*m.gap*uy;
+    const p = ensureInside(x, y, verts, BALL_R+10);
+    balls.push({ x:p.x, y:p.y, vx:0, vy:0,
+                 owner: k===0 ? 0 : NEUTRAL, attr: k % 3, protUntil:0 });
+  }
+}
 function newGame(){
   resetView();
   setupTable();
   balls = [];
+  // 🏆 미션(솔로): 정해진 배치로 시작, 가위바위보·상대 없음
+  if (solo){
+    buildMissionBalls();
+    resetMatchState();
+    document.body.classList.add('solo');
+    setMsg();
+    updateHud();
+    beginTurn();
+    return;
+  }
   // 플레이어 공 — 속성은 시작 선택 단계에서 결정 (후공 P2 공만 첫 턴 보호)
   // 킹볼 모드에서는 이 공이 곧 킹볼
   for (let p=0;p<2;p++){
@@ -938,6 +965,15 @@ function newGame(){
 
 /* ---------- HUD ---------- */
 function updateHud(){
+  // 🏆 미션(솔로) HUD — 상대·목숨 없음, 남은 공만 표시
+  if (solo){
+    const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
+    document.getElementById('round-num').textContent = '🏆 ' + (currentMission+1) + '탄';
+    document.getElementById('balls1').textContent = '내 공 ' + countBalls(0) + ' · 남은 ' + neutral;
+    document.getElementById('card1').classList.add('active');
+    document.querySelector('#card1 .pname').textContent = '나';
+    return;
+  }
   const maxH = gameMode === 'king' ? KING_LIVES : LIVES_MAX;
   const lv   = gameMode === 'king' ? kingLives : lives;
   for (let p=0;p<2;p++){
@@ -955,6 +991,11 @@ function updateHud(){
 function setMsg(text){
   const el = document.getElementById('turn-msg');
   if (text !== undefined){ el.textContent = text; return; }
+  if (solo){
+    const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
+    el.innerHTML = `✊ 내 공을 당겨 발사 — 남은 <b style="color:var(--neon)">${neutral}개</b>를 연쇄로 모두 잡으세요!`;
+    return;
+  }
   const p = cur();
   const bonus = shotCount===1 ? ' <span style="opacity:.6">(후공 보너스: 파워 +20%)</span>' : '';
   if (net){
@@ -1179,6 +1220,15 @@ function allStopped(){ return balls.every(b => b.vx===0 && b.vy===0); }
 
 function endShot(){
   shotCount++;
+  // 🏆 미션(솔로): 상대·턴 없음 — 전부 잡으면 클리어, 내 공이 0개면 실패
+  if (solo){
+    updateHud();
+    if (phase === 'over') return;
+    if (balls.every(b => b.bomb || b.owner === 0)){ gameOver(0, `${currentMission+1}탄 클리어!`); return; }
+    if (countBalls(0) === 0){ missionFail(); return; }
+    beginTurn();
+    return;
+  }
   let extraShot = false;
   if (doubleArmed){ doubleArmed = false; turnFlip++; extraShot = true; } // 같은 플레이어가 한 번 더
   updateHud();
@@ -1337,25 +1387,46 @@ function gameOver(winner, detail){
   updateHud();
   document.body.classList.remove('danger');
   const t = document.getElementById('end-title');
-  // 🏆 미션 결과
+  // 🏆 미션 결과 (솔로 클리어)
   if (currentMission >= 0){
-    const won = winner === 0;                        // 사람 = P1
-    if (won && currentMission + 1 > missionsCleared()){
+    const last = currentMission === MISSIONS.length - 1;
+    if (currentMission + 1 > missionsCleared()){
       try{ localStorage.setItem('rps_missions', currentMission + 1); }catch(e){}
     }
-    const last = currentMission === MISSIONS.length - 1;
-    t.textContent = won ? (last ? '🏆 모든 미션 클리어!' : `🏆 ${currentMission+1}탄 클리어!`) : `😢 ${currentMission+1}탄 실패`;
-    t.style.color = won ? '#5dff9b' : '#ff6b6b';
-    document.getElementById('end-detail').textContent = won
-      ? (last ? '축하합니다! 10탄을 모두 깼습니다.' : `${detail} — 다음 미션이 해금되었습니다!`)
-      : `${detail} — 다시 도전해 보세요.`;
+    t.textContent = last ? '🏆 모든 미션 클리어!' : `🏆 ${currentMission+1}탄 클리어!`;
+    t.style.color = '#5dff9b';
+    document.getElementById('end-detail').textContent = last
+      ? '축하합니다! 10탄을 모두 깼습니다.'
+      : `${detail} — 다음 미션이 해금되었습니다!`;
+    setupMissionEndButtons(true, last);
   } else {
     t.textContent = OWNER_NAME[winner] + (net ? (winner === myIdx ? ' (나) 승리!' : ' (상대) 승리!') : ' 승리!');
     t.style.color = OWNER_COLOR[winner];
     document.getElementById('end-detail').textContent = detail;
+    document.getElementById('restart-btn').textContent = '다시 하기';
+    document.getElementById('mission-list-btn').classList.add('hidden');
   }
   setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 700);
   if (net && !applyingSync) sendSync();
+}
+// 🏆 미션 실패 (내 공을 모두 잃음)
+function missionFail(){
+  if (phase === 'over') return;
+  phase = 'over';
+  document.body.classList.remove('danger');
+  const t = document.getElementById('end-title');
+  t.textContent = `😢 ${currentMission+1}탄 실패`;
+  t.style.color = '#ff6b6b';
+  document.getElementById('end-detail').textContent = '내 공을 모두 잃었어요 — 다시 도전!';
+  setupMissionEndButtons(false, false);
+  setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 500);
+}
+let missionEndWon = false;
+function setupMissionEndButtons(won, last){
+  missionEndWon = won;
+  const rb = document.getElementById('restart-btn');
+  rb.textContent = won ? (last ? '🎉 완료' : '다음 미션 →') : '🔄 다시 도전';
+  document.getElementById('mission-list-btn').classList.remove('hidden');
 }
 
 /* ---------- 열세 판정 / 중립 공 증원 / 아이템 ---------- */
@@ -1428,6 +1499,7 @@ function spawnReinforcements(){
 
 const itemBtns = [...document.querySelectorAll('.item-btn')];
 function itemUsable(kind, p){
+  if (solo) return false;                      // 미션(솔로)에는 아이템 없음
   if (phase !== 'aim' || cur() !== p || itemUsed[kind][p]) return false;
   if (vsAI && p === aiIdx) return false;       // 컴퓨터 아이템은 표시 안 함
   if (net && p !== myIdx) return false;        // 온라인: 내 아이템만 표시
@@ -2082,7 +2154,22 @@ document.getElementById('start-btn').addEventListener('click', () => {
   if (net === 'host') netSend({t:'start', map:mapKey, mode:gameMode, balls:snapBalls()});
 });
 document.getElementById('restart-btn').addEventListener('click', () => {
+  // 🏆 미션: 승리면 다음 미션(없으면 목록), 실패면 같은 미션 재도전
+  if (solo && currentMission >= 0){
+    document.getElementById('end').classList.add('hidden');
+    if (missionEndWon){
+      if (currentMission + 1 < MISSIONS.length) startMission(currentMission + 1);
+      else { returnToSetup(); }
+    } else {
+      startMission(currentMission);
+    }
+    return;
+  }
   if (net) netSend({t:'restart'});
+  returnToSetup();
+});
+document.getElementById('mission-list-btn').addEventListener('click', () => {
+  document.getElementById('end').classList.add('hidden');
   returnToSetup();
 });
 
@@ -2295,7 +2382,9 @@ function teardownNet(){
 }
 function returnToSetup(){
   resetView();
+  solo = false;
   document.body.classList.remove('danger');
+  document.body.classList.remove('solo');
   $id('rules').classList.add('hidden');
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');
@@ -2374,12 +2463,15 @@ function joinRoom(){
 
 /* ---------- 메인 메뉴 네비게이션 ---------- */
 function showMainMenu(){
+  solo = false;
+  document.body.classList.remove('solo');
   $id('menu-config').classList.add('hidden');
   $id('menu-main').classList.remove('hidden');
 }
 function enterSingle(){
   teardownNet();
-  vsAI = true; netMode = 'ai'; currentMission = -1;
+  vsAI = true; netMode = 'ai'; currentMission = -1; solo = false;
+  document.body.classList.remove('solo');
   setNetNames();
   $id('config-title').textContent = '🤖 싱글플레이';
   $id('multi-controls').classList.add('hidden');
@@ -2403,23 +2495,22 @@ function renderMissions(){
   grid.innerHTML = MISSIONS.map((m,i) => {
     const locked = i > cleared, done = i < cleared;
     return `<button class="mission-btn${locked?' locked':''}${done?' done':''}" data-m="${i}" ${locked?'disabled':''}>
-      <b>${i+1}탄</b><small>${MAP_KOR[m.map]} · ${m.mode==='king'?'킹볼':'일반'} · ${AI_KOR[m.ai]}</small>
+      <b>${i+1}탄</b><small>공 ${m.n}개 · ${m.desc}</small>
       <span class="m-state">${done?'✅':locked?'🔒':'▶️'}</span></button>`;
   }).join('');
   grid.querySelectorAll('.mission-btn:not(.locked)').forEach(btn =>
     btn.addEventListener('click', () => startMission(+btn.dataset.m)));
 }
 function startMission(i){
-  const m = MISSIONS[i];
   currentMission = i;
-  vsAI = true; netMode = 'ai';
-  aiLevel = m.ai; mapKey = m.map; gameMode = m.mode;
-  setNetNames();
+  solo = true; vsAI = false; netMode = '';
+  gameMode = 'normal'; mapKey = 'rect';     // 퍼즐은 열린 당구대에서
   $id('setup').classList.add('hidden');
   newGame();
 }
 function enterMulti(){
-  vsAI = false; netMode = ''; currentMission = -1;
+  vsAI = false; netMode = ''; currentMission = -1; solo = false;
+  document.body.classList.remove('solo');
   setNetNames();
   $id('config-title').textContent = '👥 멀티플레이';
   $id('single-tabs').classList.add('hidden');

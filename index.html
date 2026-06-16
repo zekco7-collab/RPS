@@ -203,6 +203,27 @@
   .back-btn:hover{border-color:var(--neon);color:var(--neon)}
   #config-title{font-size:17px;font-weight:800;color:var(--neon);text-align:left}
   .section-label{text-align:left;font-size:12px;font-weight:700;opacity:.55;letter-spacing:.5px;margin:16px 2px 6px}
+  /* 싱글 탭 */
+  #single-tabs{display:flex;gap:8px;margin:14px 0 4px}
+  .tab-btn{
+    flex:1;text-align:center;padding:10px;border-radius:10px;cursor:pointer;font-weight:800;font-size:14px;
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);color:var(--paper);transition:.15s;
+  }
+  .tab-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);color:var(--neon)}
+  /* 미션 목록 */
+  #mission-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+  .mission-btn{
+    position:relative;text-align:left;padding:11px 12px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--paper);
+    transition:.15s;font:inherit;
+  }
+  .mission-btn:hover{border-color:var(--neon);transform:translateY(-2px)}
+  .mission-btn b{display:block;font-size:15px}
+  .mission-btn small{display:block;font-size:10.5px;opacity:.6;margin-top:2px}
+  .mission-btn .m-state{position:absolute;top:9px;right:10px;font-size:14px}
+  .mission-btn.done{border-color:rgba(93,255,155,.45)}
+  .mission-btn.locked{opacity:.45;cursor:not-allowed;filter:grayscale(.5)}
+  .mission-btn.locked:hover{transform:none;border-color:rgba(255,255,255,.12)}
   #rules-title{font-size:21px;font-weight:900;color:var(--neon);margin-bottom:14px}
   #rules .rules{margin-bottom:18px}
   .rule-sec{
@@ -363,6 +384,18 @@
         <div id="config-title">싱글플레이</div>
       </div>
 
+      <!-- 싱글 탭: 자유 대전 / 미션 -->
+      <div id="single-tabs" class="hidden">
+        <div class="tab-btn sel" data-tab="free">🎯 자유 대전</div>
+        <div class="tab-btn" data-tab="mission">🏆 미션</div>
+      </div>
+
+      <!-- 미션 목록 (싱글·미션 탭) -->
+      <div id="mission-panel" class="hidden">
+        <div class="section-label">미션을 선택하세요 (순서대로 해금)</div>
+        <div id="mission-grid"></div>
+      </div>
+
       <!-- 멀티 전용: 방 만들기 / 참가 -->
       <div id="multi-controls" class="hidden">
         <div class="modes" id="net-row">
@@ -376,6 +409,8 @@
         </div>
       </div>
 
+      <!-- 자유 대전 / 멀티 공통: 난이도·모드·맵·시작 -->
+      <div id="play-config">
       <!-- 싱글 전용: 난이도 -->
       <div id="ai-panel" class="hidden">
         <div class="section-label">컴퓨터 난이도</div>
@@ -407,6 +442,7 @@
         </div>
       </div>
       <button class="big-btn" id="start-btn">게임 시작</button>
+      </div><!-- /play-config -->
     </div>
   </div>
 </div>
@@ -633,6 +669,9 @@ let shotCount = 0;       // 지금까지 발사된 샷 수 (짝수=P1 차례)
 let lives = [LIVES_MAX, LIVES_MAX];
 let phase = 'setup';     // setup | aim | moving | pick | over
 let suddenDeath = false;
+let deathMatch = false;  // 일반 모드: 중립 소진 후 공 개수 동수 → 데스매치
+let deathMatchStart = 0; // 데스매치 시작 시점의 샷 수
+let pendingKingPick = -1;// 👑 피격당한 킹볼의 속성 재선택 대기 (해당 플레이어, -1: 없음)
 let selected = null;     // 조준 중인 내 공
 let dragging = false, dragX = 0, dragY = 0;
 let pairCool = new Map();// 같은 쌍 중복 변환 방지
@@ -665,6 +704,24 @@ const AI_CFG = {
   normal: { noise:0.10, randTarget:0.0, powJitter:0.18 },
   hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
 };
+// 🏆 미션 1~10탄 — 맵·모드·난이도 (점점 어려워짐)
+const MISSIONS = [
+  { map:'hex',    mode:'normal', ai:'easy',   desc:'육각 코트에서 가볍게 몸풀기' },
+  { map:'circle', mode:'normal', ai:'easy',   desc:'원형 코트에 적응하기' },
+  { map:'rect',   mode:'normal', ai:'normal', desc:'당구대에서 정교한 한 방' },
+  { map:'hex',    mode:'king',   ai:'easy',   desc:'킹볼 모드 첫 도전' },
+  { map:'circle', mode:'normal', ai:'normal', desc:'중립 공 쟁탈전' },
+  { map:'rect',   mode:'king',   ai:'normal', desc:'당구대 킹볼 수성전' },
+  { map:'hex',    mode:'normal', ai:'hard',   desc:'강한 컴퓨터와 정면승부' },
+  { map:'circle', mode:'king',   ai:'hard',   desc:'원형 킹볼 혈투' },
+  { map:'rect',   mode:'normal', ai:'hard',   desc:'데스매치를 각오하라' },
+  { map:'hex',    mode:'king',   ai:'hard',   desc:'최종 보스 — 킹볼을 사수하라!' },
+];
+let currentMission = -1; // 진행 중인 미션 인덱스 (-1: 자유 대전)
+let singleTab = 'free';  // 싱글 화면 탭: free | mission
+const MAP_KOR = { hex:'육각', rect:'당구대', circle:'원형' };
+const AI_KOR  = { easy:'쉬움', normal:'보통', hard:'어려움' };
+function missionsCleared(){ try{ return +(localStorage.getItem('rps_missions')||0); }catch(e){ return 0; } }
 
 const cur = () => (shotCount + turnFlip + firstPlayer) % 2;
 const countBalls = o => balls.reduce((n,b)=> n + (b.owner===o), 0);
@@ -683,39 +740,46 @@ function blip(freq, vol, dur){
     o.start(); o.stop(AC.currentTime + dur);
   }catch(e){}
 }
-// 🎱 당구공이 부딪히는 소리 — 세게 칠수록 더 크고 높고 또렷하게
-//   cushion=true 면 벽(쿠션)에 맞는 둔탁한 소리
+// 🎱 당구공이 부딪히는 소리 — 짧고 또렷한 '톡' (세게 칠수록 크고 높게)
+//   cushion=true 면 벽(쿠션)에 맞는 둔탁한 '툭'
 function clack(impact, cushion){
   try{
     if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
     const now = AC.currentTime;
     const v = Math.min(1, Math.max(0, impact) / 8);          // 충돌 세기 0~1 정규화
-    const vol = (cushion ? 0.05 : 0.08) + v * (cushion ? 0.10 : 0.22);
-    const dur = (cushion ? 0.07 : 0.045) + v * 0.03;
-    const base = (cushion ? 260 + v*320 : 1500 + v*1700);    // 셀수록 높은 음
-    const freq = base * (1 + (Math.random()*2-1)*0.06);      // 약간의 랜덤
-
-    // 1) 짧은 노이즈 버스트 — '딱' 하는 타격 질감 (밴드패스로 통과)
-    const n = Math.max(1, Math.floor(AC.sampleRate * dur));
-    const buf = AC.createBuffer(1, n, AC.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i=0;i<n;i++){ const e = Math.pow(1 - i/n, 2); d[i] = (Math.random()*2-1) * e; }
+    if (cushion){
+      const vol = 0.05 + v*0.10, dur = 0.08 + v*0.03;
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = 'sine'; const f = 240 + v*260;
+      o.frequency.setValueAtTime(f, now);
+      o.frequency.exponentialRampToValueAtTime(f*0.6, now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      o.connect(g); g.connect(AC.destination);
+      o.start(now); o.stop(now + dur);
+      return;
+    }
+    // 당구공 — 경쾌하고 단단한 클릭: 고주파 파셜 + 아주 짧은 노이즈 틱
+    const vol = 0.07 + v*0.20;
+    const f = 2100 + v*1900 + (Math.random()*2-1)*150;       // 셀수록 높게
+    const dur = 0.028 + v*0.022;                             // 매우 짧은 감쇠
+    for (const [mul, amp] of [[1, vol], [1.48, vol*0.5], [2.6, vol*0.22]]){
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = 'sine'; o.frequency.value = f * mul;
+      g.gain.setValueAtTime(amp, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      o.connect(g); g.connect(AC.destination);
+      o.start(now); o.stop(now + dur);
+    }
+    const tn = Math.max(1, Math.floor(AC.sampleRate * 0.006));
+    const buf = AC.createBuffer(1, tn, AC.sampleRate);
+    const dd = buf.getChannelData(0);
+    for (let i=0;i<tn;i++){ dd[i] = (Math.random()*2-1) * Math.pow(1 - i/tn, 3); }
     const noise = AC.createBufferSource(); noise.buffer = buf;
-    const bp = AC.createBiquadFilter();
-    bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = cushion ? 0.7 : 1.3;
-    const ng = AC.createGain(); ng.gain.value = vol;
-    noise.connect(bp); bp.connect(ng); ng.connect(AC.destination);
-    noise.start(now); noise.stop(now + dur);
-
-    // 2) 짧은 톤 '노크' — 단단한 공 느낌
-    const o = AC.createOscillator(), g = AC.createGain();
-    o.type = cushion ? 'sine' : 'triangle';
-    o.frequency.setValueAtTime(freq, now);
-    o.frequency.exponentialRampToValueAtTime(freq*0.55, now + dur);
-    g.gain.setValueAtTime(vol*0.7, now);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-    o.connect(g); g.connect(AC.destination);
-    o.start(now); o.stop(now + dur);
+    const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
+    const ng = AC.createGain(); ng.gain.value = vol*0.6;
+    noise.connect(hp); hp.connect(ng); ng.connect(AC.destination);
+    noise.start(now); noise.stop(now + 0.02);
   }catch(e){}
 }
 
@@ -732,7 +796,8 @@ function setupTable(){
 function resetMatchState(){
   shotCount = 0; lives = [LIVES_MAX, LIVES_MAX];
   kingLives = [KING_LIVES, KING_LIVES];
-  suddenDeath = false; particles = []; pairCool.clear();
+  suddenDeath = false; deathMatch = false; deathMatchStart = 0; pendingKingPick = -1;
+  particles = []; pairCool.clear();
   turnFlip = 0; doubleArmed = false; shieldArming = -1; firstPlayer = 0;
   itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
   selected = null; lastWin = null;
@@ -820,7 +885,7 @@ function updateHud(){
   }
   const round = Math.min(ROUND_LIMIT, Math.floor(shotCount/2)+1);
   document.getElementById('round-num').textContent =
-    suddenDeath ? 'SUDDEN DEATH' : round + ' / ' + ROUND_LIMIT;
+    deathMatch ? '💀 데스매치' : (suddenDeath ? 'SUDDEN DEATH' : round + ' / ' + ROUND_LIMIT);
   document.getElementById('card1').classList.toggle('active', phase!=='over' && cur()===0);
   document.getElementById('card2').classList.toggle('active', phase!=='over' && cur()===1);
   updateDanger();
@@ -953,6 +1018,7 @@ function resolveBattle(a, b, impact){
     lose.attr = Math.floor(Math.random()*3);
     lose.revealed = false;                       // 리스폰하며 속성 다시 숨김
     lose.protUntil = shotCount + 3;              // 리스폰 보호
+    if (!net) pendingKingPick = p;               // 피격당한 쪽이 속성 재선택 (온라인 제외)
     for (const o of balls){
       if (o !== lose && Math.hypot(o.x-lose.x, o.y-lose.y) < BALL_R*2.2){
         lose.y += BALL_R*2.4 * (lose.y < CY ? 1 : -1);
@@ -1010,7 +1076,7 @@ function restartAnim(el, cls){ el.classList.remove(cls); void el.offsetWidth; el
 function updateDanger(){
   const lv = gameMode === 'king' ? kingLives : lives;
   const active = phase !== 'over' && phase !== 'setup' &&
-    (suddenDeath || lv[0] <= 1 || lv[1] <= 1);
+    (suddenDeath || deathMatch || lv[0] <= 1 || lv[1] <= 1);
   document.body.classList.toggle('danger', active);
 }
 // 묵직한 타격음 (목숨 감소)
@@ -1060,6 +1126,31 @@ function endShot(){
   for (let p=0;p<2;p++){
     if (balls.every(b => b.bomb || b.owner === p)){ gameOver(p, '모든 공을 차지했습니다!'); return; }
   }
+  // 💀 일반 모드: 중립 공이 모두 사라지면 공 개수로 승부 (동수면 데스매치)
+  if (gameMode !== 'king' && !balls.some(b => b.owner === NEUTRAL && !b.bomb)){
+    const live2 = balls.filter(b => !b.bomb);
+    if (live2.length && live2.every(b => b.attr === live2[0].attr)){ startPick('deadlock'); if (net) sendSync(); return; }
+    const c0 = countBalls(0), c1 = countBalls(1);
+    if (!deathMatch){
+      if (c0 !== c1){ gameOver(c0>c1?0:1, `중립 공 소진 — 공 ${Math.max(c0,c1)}개로 승리!`); return; }
+      deathMatch = true; deathMatchStart = shotCount; updateHud();
+      beginTurn();
+      setMsg('💀 데스매치! 공 개수가 같습니다 — 각자 1턴씩, 더 많은 쪽이 승리!');
+      if (net) sendSync('💀 데스매치 시작! 각자 1턴씩');
+      return;
+    }
+    if ((shotCount - deathMatchStart) % 2 === 0){
+      if (c0 !== c1){ gameOver(c0>c1?0:1, `데스매치 — 공 ${Math.max(c0,c1)}개로 승리!`); return; }
+      beginTurn();
+      setMsg('💀 데스매치 — 아직 동수! 한 라운드 더');
+      if (net) sendSync('💀 데스매치 — 동수, 계속!');
+      return;
+    }
+    beginTurn();
+    setMsg('💀 데스매치 진행 중...');
+    if (net) sendSync('💀 데스매치 진행 중...');
+    return;
+  }
   // 3라운드(6샷)마다 중립 공 속성 랜덤 변경 — 증원보다 먼저 (새 증원 공은 그대로 유지)
   let shuffleMsg = null;
   if (!suddenDeath && shotCount % NEUTRAL_SHUFFLE_EVERY === 0){
@@ -1090,6 +1181,12 @@ function endShot(){
   if (net) sendSync(notices.join(' '));
 }
 function beginTurn(){
+  // 👑 킹볼이 피격당했으면 다음 턴 전에 속성 재선택
+  if (pendingKingPick >= 0){
+    const p = pendingKingPick; pendingKingPick = -1;
+    startKingRepick(p);
+    return;
+  }
   phase = 'aim';
   shieldArming = -1;
   selected = balls.find(b => b.owner === cur());
@@ -1176,10 +1273,25 @@ function gameOver(winner, detail){
   phase = 'over';
   lastWin = {winner, detail};
   updateHud();
+  document.body.classList.remove('danger');
   const t = document.getElementById('end-title');
-  t.textContent = OWNER_NAME[winner] + (net ? (winner === myIdx ? ' (나) 승리!' : ' (상대) 승리!') : ' 승리!');
-  t.style.color = OWNER_COLOR[winner];
-  document.getElementById('end-detail').textContent = detail;
+  // 🏆 미션 결과
+  if (currentMission >= 0){
+    const won = winner === 0;                        // 사람 = P1
+    if (won && currentMission + 1 > missionsCleared()){
+      try{ localStorage.setItem('rps_missions', currentMission + 1); }catch(e){}
+    }
+    const last = currentMission === MISSIONS.length - 1;
+    t.textContent = won ? (last ? '🏆 모든 미션 클리어!' : `🏆 ${currentMission+1}탄 클리어!`) : `😢 ${currentMission+1}탄 실패`;
+    t.style.color = won ? '#5dff9b' : '#ff6b6b';
+    document.getElementById('end-detail').textContent = won
+      ? (last ? '축하합니다! 10탄을 모두 깼습니다.' : `${detail} — 다음 미션이 해금되었습니다!`)
+      : `${detail} — 다시 도전해 보세요.`;
+  } else {
+    t.textContent = OWNER_NAME[winner] + (net ? (winner === myIdx ? ' (나) 승리!' : ' (상대) 승리!') : ' 승리!');
+    t.style.color = OWNER_COLOR[winner];
+    document.getElementById('end-detail').textContent = detail;
+  }
   setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 700);
   if (net && !applyingSync) sendSync();
 }
@@ -1310,6 +1422,31 @@ document.getElementById('pick-cancel').addEventListener('click', () => {
   setMsg();
 });
 
+/* 👑 킹볼이 피격당한 직후 — 속성을 새로 고르는 기회 (취소 불가, 끝나면 다음 턴) */
+function startKingRepick(p){
+  phase = 'pick';
+  pickState = { mode:'kingrepick', who:p, picks:[null,null], timer:null };
+  const ov = document.getElementById('pick');
+  ov.classList.remove('revealing');
+  ov.classList.add('peek');
+  document.getElementById('pick-cancel').classList.add('hidden');
+  document.getElementById('pick-timer').style.display = 'none';
+  document.querySelector('.pick-row').classList.remove('waiting');
+  document.getElementById('pick-who').style.color = OWNER_COLOR[p];
+  if (vsAI && p === aiIdx){
+    document.getElementById('pick-who').textContent = '🤖 컴퓨터 — 킹볼 속성 재선택';
+    document.getElementById('pick-warn').textContent = '컴퓨터가 다시 고르는 중...';
+    document.getElementById('pick-sub').textContent = '';
+    ov.classList.remove('hidden');
+    setTimeout(() => { if (pickState && pickState.mode === 'kingrepick') submitPick(Math.floor(Math.random()*3)); }, 800);
+    return;
+  }
+  document.getElementById('pick-who').textContent = OWNER_NAME[p] + ' — 👑 킹볼 속성 재선택';
+  document.getElementById('pick-warn').textContent = '피격당했습니다! 킹볼에 부여할 새 속성을 고르세요';
+  document.getElementById('pick-sub').textContent = '상대에겐 공격/피격 전까지 ? 로 보입니다';
+  ov.classList.remove('hidden');
+}
+
 /* ---------- 가위바위보 선택 (시작 / 교착) ---------- */
 let pickState = null;
 function startPick(mode){
@@ -1318,6 +1455,7 @@ function startPick(mode){
   if (mode === 'deadlock') setMsg('⚖️ 교착 상태! 모든 공의 속성이 같습니다');
   pickState = { mode, who:0, picks:[null,null], timer:null };
   document.getElementById('pick-cancel').classList.add('hidden');
+  document.getElementById('pick-timer').style.display = '';
   document.getElementById('pick').classList.remove('revealing');
   document.getElementById('pick').classList.toggle('peek', mode === 'start');
   document.querySelector('.pick-row').classList.remove('waiting');
@@ -1449,6 +1587,7 @@ function showOrderReveal(a, b){
 
   setTimeout(() => {
     ov.classList.remove('revealing');
+    ov.classList.add('hidden');             // 결과 화면 닫기 — 다음 단계 전 가위바위보 버튼 깜빡임 방지
     if (bothForfeit || draw){ startPick('order'); }
     else { resolveOrder(winner, `${pickIcon(a)} vs ${pickIcon(b)}`); }
   }, (bothForfeit || draw) ? 1600 : 2100);
@@ -1456,6 +1595,18 @@ function showOrderReveal(a, b){
 function submitPick(attr){
   if (pickState.timer) clearInterval(pickState.timer);
   pickState.timer = null;
+  // 👑 킹볼 피격 후 속성 재선택 → 끝나면 다음 턴으로
+  if (pickState.mode === 'kingrepick'){
+    const p = pickState.who;
+    const king = balls.find(b => b.isKing && b.owner === p);
+    if (king){ king.attr = attr; king.revealed = false; spawnParticles(king.x, king.y, '#ffd166', 20); }
+    document.getElementById('pick').classList.add('hidden');
+    document.getElementById('pick-timer').style.display = '';
+    blip(880,.1,.2);
+    pickState = null;
+    beginTurn();
+    return;
+  }
   // 👑 킹볼 속성 변경 아이템
   if (pickState.mode === 'kingitem'){
     const p = pickState.who;
@@ -1512,7 +1663,7 @@ function submitPick(attr){
 document.querySelectorAll('.pick-btn').forEach(btn =>
   btn.addEventListener('click', () => {
     const attr = +btn.dataset.attr;
-    if (net && pickState && pickState.mode !== 'kingitem') submitNetPick(attr);
+    if (net && pickState && pickState.mode !== 'kingitem' && pickState.mode !== 'kingrepick') submitNetPick(attr);
     else submitPick(attr);
   }));
 
@@ -2034,6 +2185,9 @@ function returnToSetup(){
     $id('config-title').textContent = '👥 멀티플레이';
     if (net === 'guest') setNetStatus('✅ 연결됨! 호스트가 게임을 시작하길 기다리는 중...');
     else setNetStatus('✅ 상대 연결됨! 게임을 시작하세요');
+  } else if (currentMission >= 0){
+    enterSingle();           // 미션 후에는 미션 목록으로 (해금 갱신 반영)
+    setSingleTab('mission');
   } else {
     showMainMenu();
   }
@@ -2100,18 +2254,52 @@ function showMainMenu(){
 }
 function enterSingle(){
   teardownNet();
-  vsAI = true; netMode = 'ai';
+  vsAI = true; netMode = 'ai'; currentMission = -1;
   setNetNames();
-  $id('config-title').textContent = '🤖 싱글플레이 — 컴퓨터와 대전';
+  $id('config-title').textContent = '🤖 싱글플레이';
   $id('multi-controls').classList.add('hidden');
-  $id('ai-panel').classList.remove('hidden');
+  $id('single-tabs').classList.remove('hidden');
+  setSingleTab('free');
   $id('menu-main').classList.add('hidden');
   $id('menu-config').classList.remove('hidden');
 }
+function setSingleTab(tab){
+  singleTab = tab;
+  document.querySelectorAll('#single-tabs .tab-btn').forEach(b => b.classList.toggle('sel', b.dataset.tab === tab));
+  const mission = tab === 'mission';
+  $id('mission-panel').classList.toggle('hidden', !mission);
+  $id('play-config').classList.toggle('hidden', mission);
+  $id('ai-panel').classList.toggle('hidden', mission);   // 자유 대전일 때만 난이도
+  if (mission) renderMissions();
+}
+function renderMissions(){
+  const cleared = missionsCleared();
+  const grid = $id('mission-grid');
+  grid.innerHTML = MISSIONS.map((m,i) => {
+    const locked = i > cleared, done = i < cleared;
+    return `<button class="mission-btn${locked?' locked':''}${done?' done':''}" data-m="${i}" ${locked?'disabled':''}>
+      <b>${i+1}탄</b><small>${MAP_KOR[m.map]} · ${m.mode==='king'?'킹볼':'일반'} · ${AI_KOR[m.ai]}</small>
+      <span class="m-state">${done?'✅':locked?'🔒':'▶️'}</span></button>`;
+  }).join('');
+  grid.querySelectorAll('.mission-btn:not(.locked)').forEach(btn =>
+    btn.addEventListener('click', () => startMission(+btn.dataset.m)));
+}
+function startMission(i){
+  const m = MISSIONS[i];
+  currentMission = i;
+  vsAI = true; netMode = 'ai';
+  aiLevel = m.ai; mapKey = m.map; gameMode = m.mode;
+  setNetNames();
+  $id('setup').classList.add('hidden');
+  newGame();
+}
 function enterMulti(){
-  vsAI = false; netMode = '';
+  vsAI = false; netMode = ''; currentMission = -1;
   setNetNames();
   $id('config-title').textContent = '👥 멀티플레이';
+  $id('single-tabs').classList.add('hidden');
+  $id('mission-panel').classList.add('hidden');
+  $id('play-config').classList.remove('hidden');
   $id('ai-panel').classList.add('hidden');
   $id('multi-controls').classList.remove('hidden');
   document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('sel'));
@@ -2122,7 +2310,9 @@ function enterMulti(){
 }
 $id('btn-single').addEventListener('click', enterSingle);
 $id('btn-multi').addEventListener('click', enterMulti);
-$id('btn-back').addEventListener('click', () => { vsAI = false; netMode = ''; teardownNet(); setNetStatus(''); showMainMenu(); });
+document.querySelectorAll('#single-tabs .tab-btn').forEach(btn =>
+  btn.addEventListener('click', () => setSingleTab(btn.dataset.tab)));
+$id('btn-back').addEventListener('click', () => { vsAI = false; netMode = ''; currentMission = -1; teardownNet(); setNetStatus(''); showMainMenu(); });
 $id('btn-rules').addEventListener('click', () => $id('rules').classList.remove('hidden'));
 $id('rules-close').addEventListener('click', () => $id('rules').classList.add('hidden'));
 

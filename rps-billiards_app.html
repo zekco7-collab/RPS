@@ -770,19 +770,25 @@ const AI_CFG = {
   hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
 };
 // 🏆 미션 1~10탄 — 혼자 푸는 연쇄(체인) 퍼즐
-//   내 공(주먹)으로 한 번 쳐서 주먹→가위→보→주먹… 줄지어 선 공을 연쇄로 모두 잡는다.
-//   n = 공 개수, ang = 줄의 각도(라디안), gap = 공 간격
+//   내 공(주먹)으로 한 번 쳐서 줄지어 선 공을 연쇄로 잡는다.
+//   각 공은 [중심기준 x, y, 속성]. 첫 공이 내 공(주먹). 진행 방향으로 속성이 +1씩(주먹→가위→보).
+function chainLine(n, dx, dy, a0){          // 중앙 정렬된 연쇄 한 줄
+  const out = [], ox = -(n-1)/2*dx, oy = -(n-1)/2*dy;
+  for (let i=0;i<n;i++) out.push([ox + dx*i, oy + dy*i, ((a0||0) + i) % 3]);
+  return out;
+}
+const shiftL = (a, sx, sy) => a.map(b => [b[0]+sx, b[1]+sy, b[2]]);
 const MISSIONS = [
-  { n:3,  ang:0,      gap:58, desc:'주먹으로 가위·보를 한 번에!' },
-  { n:4,  ang:0,      gap:58, desc:'주먹 → 가위 → 보 → 주먹 연쇄' },
-  { n:5,  ang:0,      gap:58, desc:'일직선 5연쇄' },
-  { n:6,  ang:0,      gap:56, desc:'더 긴 일직선' },
-  { n:5,  ang:-0.45,  gap:58, desc:'비스듬한 줄 — 조준 연습' },
-  { n:7,  ang:0,      gap:54, desc:'7연쇄' },
-  { n:6,  ang:0.6,    gap:56, desc:'대각선 연쇄' },
-  { n:8,  ang:0,      gap:52, desc:'8연쇄' },
-  { n:7,  ang:-0.7,   gap:55, desc:'가파른 대각선' },
-  { n:10, ang:0,      gap:50, desc:'최종 — 10연쇄!' },
+  { desc:'주먹으로 가위·보를 한 번에!',   balls: chainLine(3, 96, 0, 0) },
+  { desc:'주먹→가위→보→주먹 4연쇄',       balls: chainLine(4, 90, 0, 0) },
+  { desc:'세로로 선 5개 — 아래로 발사!',  balls: chainLine(5, 0, 78, 0) },          // 세로
+  { desc:'대각선 6연쇄',                  balls: chainLine(6, 70, 46, 0) },         // ↘ 대각선
+  { desc:'반대 대각선 6연쇄',             balls: chainLine(6, 72, -46, 0) },        // ↗ 대각선
+  { desc:'멀리 떨어진 5개 — 세게 쳐요!',  balls: chainLine(5, 150, 0, 0) },         // 넓은 간격(파워)
+  { desc:'긴 일직선 8연쇄',               balls: chainLine(8, 66, 0, 0) },
+  { desc:'긴 대각선 8연쇄',               balls: chainLine(8, 56, 36, 0) },
+  { desc:'두 줄 — 두 번에 나눠 잡기',     balls: [...shiftL(chainLine(4,84,0,0), 0,-80), ...shiftL(chainLine(3,84,0,1), 30,80)], twoStep:true },
+  { desc:'최종 — 11연쇄 대각선!',         balls: chainLine(11, 50, 26, 0) },
 ];
 let currentMission = -1; // 진행 중인 미션 인덱스 (-1: 자유 대전)
 let solo = false;        // 혼자 푸는 미션 모드
@@ -871,17 +877,14 @@ function resetMatchState(){
   if (aiTimer){ clearTimeout(aiTimer); aiTimer = null; }
   setNetNames();
 }
-// 🏆 미션(솔로) 공 배치 — 한 줄로 늘어선 연쇄 퍼즐
+// 🏆 미션(솔로) 공 배치 — 좌표 레이아웃대로 (첫 공이 내 공)
 function buildMissionBalls(){
   const m = MISSIONS[currentMission];
-  const ux = Math.cos(m.ang), uy = Math.sin(m.ang), off = (m.n - 1) / 2;
-  for (let k=0;k<m.n;k++){
-    const x = CX + (k - off)*m.gap*ux;
-    const y = CY + (k - off)*m.gap*uy;
-    const p = ensureInside(x, y, verts, BALL_R+10);
+  m.balls.forEach((b, k) => {
+    const p = ensureInside(CX + b[0], CY + b[1], verts, BALL_R+8);
     balls.push({ x:p.x, y:p.y, vx:0, vy:0,
-                 owner: k===0 ? 0 : NEUTRAL, attr: k % 3, protUntil:0 });
-  }
+                 owner: k===0 ? 0 : NEUTRAL, attr: b[2], protUntil:0 });
+  });
 }
 function newGame(){
   resetView();
@@ -2495,7 +2498,7 @@ function renderMissions(){
   grid.innerHTML = MISSIONS.map((m,i) => {
     const locked = i > cleared, done = i < cleared;
     return `<button class="mission-btn${locked?' locked':''}${done?' done':''}" data-m="${i}" ${locked?'disabled':''}>
-      <b>${i+1}탄</b><small>공 ${m.n}개 · ${m.desc}</small>
+      <b>${i+1}탄</b><small>공 ${m.balls.length}개 · ${m.desc}</small>
       <span class="m-state">${done?'✅':locked?'🔒':'▶️'}</span></button>`;
   }).join('');
   grid.querySelectorAll('.mission-btn:not(.locked)').forEach(btn =>

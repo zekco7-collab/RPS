@@ -693,9 +693,8 @@ const AI_CFG = {
   normal: { noise:0.10, randTarget:0.0, powJitter:0.18 },
   hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
 };
-// 🏆 미션 1~10탄 — 혼자 푸는 연쇄(체인) 퍼즐
-//   내 공(주먹)으로 한 번 쳐서 줄지어 선 공을 연쇄로 잡는다.
-//   각 공은 [중심기준 x, y, 속성]. 첫 공이 내 공(주먹). 진행 방향으로 속성이 +1씩(주먹→가위→보).
+// 🏆 미션 1~10탄 — 연쇄(체인) 퍼즐 (난이도·기믹 단계별)
+//   각 공은 [중심기준 x, y, 속성]. 첫 공이 내 공. twoStep/maxShots 로 샷 제한.
 function chainLine(n, dx, dy, a0){          // 중앙 정렬된 연쇄 한 줄
   const out = [], ox = -(n-1)/2*dx, oy = -(n-1)/2*dy;
   for (let i=0;i<n;i++) out.push([ox + dx*i, oy + dy*i, ((a0||0) + i) % 3]);
@@ -703,17 +702,40 @@ function chainLine(n, dx, dy, a0){          // 중앙 정렬된 연쇄 한 줄
 }
 const shiftL = (a, sx, sy) => a.map(b => [b[0]+sx, b[1]+sy, b[2]]);
 const MISSIONS = [
-  { desc:'주먹으로 가위·보를 한 번에!',   balls: chainLine(3, 96, 0, 0) },
-  { desc:'주먹→가위→보→주먹 4연쇄',       balls: chainLine(4, 90, 0, 0) },
-  { desc:'세로로 선 5개 — 아래로 발사!',  balls: chainLine(5, 0, 78, 0) },          // 세로
-  { desc:'대각선 6연쇄',                  balls: chainLine(6, 70, 46, 0) },         // ↘ 대각선
-  { desc:'반대 대각선 6연쇄',             balls: chainLine(6, 72, -46, 0) },        // ↗ 대각선
-  { desc:'멀리 떨어진 5개 — 세게 쳐요!',  balls: chainLine(5, 150, 0, 0) },         // 넓은 간격(파워)
-  { desc:'긴 일직선 8연쇄',               balls: chainLine(8, 66, 0, 0) },
-  { desc:'긴 대각선 8연쇄',               balls: chainLine(8, 56, 36, 0) },
-  { desc:'두 줄 — 두 번에 나눠 잡기',     balls: [...shiftL(chainLine(4,84,0,0), 0,-80), ...shiftL(chainLine(3,84,0,1), 30,80)], twoStep:true },
-  { desc:'최종 — 11연쇄 대각선!',         balls: chainLine(11, 50, 26, 0) },
+  { title:'첫 연쇄', desc:'✊ 가로 3개 — 한 방에 잡기!', balls: chainLine(3, 88, 0, 0) },
+  { title:'가위 출발', desc:'✌️로 시작! 아래→위 세로 4연쇄', balls: chainLine(4, 0, -76, 1) },
+  { title:'코너 돌리기', desc:'L자 배치 — 방향을 꺾어 연쇄!', balls: [
+    [0, 110, 0], [0, 30, 1], [0, -50, 2], [-88, -50, 0], [-176, -50, 1],
+  ]},
+  { title:'대각 슛', desc:'↘ 대각선 5연쇄', balls: chainLine(5, 64, 42, 0) },
+  { title:'멀리 보내기', desc:'간격 넓음 — 세기 조절!', balls: chainLine(4, 135, 0, 0) },
+  { title:'보의 역습', desc:'✋로 시작! 가로 5연쇄', balls: chainLine(5, 72, 0, 2) },
+  { title:'함정 주의', desc:'위 줄이 정답! 아래는 속임수', balls: [
+    [0, 100, 0],
+    ...shiftL(chainLine(4, 78, 0, 1), 0, -60),
+    ...shiftL(chainLine(3, 78, 0, 0), 0, 60),
+  ]},
+  { title:'갈림길', desc:'왼쪽 길만 연쇄가 이어져요', map:'hex', balls: [
+    [0, 0, 0],
+    [-80, -70, 1], [-160, -70, 2], [-240, -70, 0],
+    [80, -70, 2], [160, -70, 0],
+  ]},
+  { title:'두 번의 기회', desc:'위·아래 두 뭉치 — 나눠서 잡기', twoStep:true, balls: [
+    [-180, 0, 0],
+    ...shiftL(chainLine(3, 80, 0, 1), 40, -100),
+    ...shiftL(chainLine(3, 80, 0, 1), 40, 100),
+  ]},
+  { title:'마스터 샷', desc:'긴 연쇄 + 옆 함정 — 실수하면 끝!', balls: [
+    ...chainLine(8, 58, 32, 0),
+    [200, -60, 0],
+  ]},
 ];
+function missionMaxShots(m){
+  if (!m) return 999;
+  if (m.maxShots != null) return m.maxShots;
+  if (m.twoStep) return 2;
+  return 999;
+}
 let currentMission = -1; // 진행 중인 미션 인덱스 (-1: 자유 대전)
 let solo = false;        // 혼자 푸는 미션 모드
 let singleTab = 'free';  // 싱글 화면 탭: free | mission
@@ -894,8 +916,10 @@ function updateHud(){
   // 🏆 미션(솔로) HUD — 상대·목숨 없음, 남은 공만 표시
   if (solo){
     const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
+    const maxShots = missionMaxShots(MISSIONS[currentMission]);
+    const shotLbl = maxShots < 999 ? ` · ${shotCount}/${maxShots}샷` : '';
     document.getElementById('round-num').textContent = '🏆 ' + (currentMission+1) + '탄';
-    document.getElementById('balls1').textContent = '내 공 ' + countBalls(0) + ' · 남은 ' + neutral;
+    document.getElementById('balls1').textContent = '내 공 ' + countBalls(0) + ' · 남은 ' + neutral + shotLbl;
     document.getElementById('card1').classList.add('active');
     document.querySelector('#card1 .pname').textContent = '나';
     return;
@@ -920,7 +944,9 @@ function setMsg(text){
   if (text !== undefined){ el.textContent = text; return; }
   if (solo){
     const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
-    el.innerHTML = `✊ 내 공을 당겨 발사 — 남은 <b style="color:var(--neon)">${neutral}개</b>를 연쇄로 모두 잡으세요!`;
+    const maxShots = missionMaxShots(MISSIONS[currentMission]);
+    const shotHint = maxShots < 999 ? ` · 샷 ${shotCount}/${maxShots}` : '';
+    el.innerHTML = `✊ 내 공을 당겨 발사 — 남은 <b style="color:var(--neon)">${neutral}개</b>를 연쇄로 모두 잡으세요${shotHint}!`;
     return;
   }
   const p = cur();
@@ -1130,7 +1156,12 @@ function endShot(){
     updateHud();
     if (phase === 'over') return;
     if (balls.every(b => b.bomb || b.owner === 0)){ gameOver(0, `${currentMission+1}탄 클리어!`); return; }
-    if (countBalls(0) === 0){ missionFail(); return; }
+    if (countBalls(0) === 0){ missionFail('내 공을 모두 잃었어요 — 다시 도전!'); return; }
+    const maxShots = missionMaxShots(MISSIONS[currentMission]);
+    if (shotCount >= maxShots && balls.some(b => b.owner === NEUTRAL && !b.bomb)){
+      missionFail('샷 횟수를 모두 사용했어요 — 다시 도전!');
+      return;
+    }
     beginTurn();
     return;
   }
@@ -1315,14 +1346,14 @@ function gameOver(winner, detail){
   if (net && !applyingSync) sendSync();
 }
 // 🏆 미션 실패 (내 공을 모두 잃음)
-function missionFail(){
+function missionFail(detail){
   if (phase === 'over') return;
   phase = 'over';
   document.body.classList.remove('danger');
   const t = document.getElementById('end-title');
   t.textContent = `😢 ${currentMission+1}탄 실패`;
   t.style.color = '#ff6b6b';
-  document.getElementById('end-detail').textContent = '내 공을 모두 잃었어요 — 다시 도전!';
+  document.getElementById('end-detail').textContent = detail || '내 공을 모두 잃었어요 — 다시 도전!';
   setupMissionEndButtons(false, false);
   setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 500);
 }
@@ -2337,7 +2368,7 @@ function renderMissions(){
   grid.innerHTML = MISSIONS.map((m,i) => {
     const locked = i > cleared, done = i < cleared;
     return `<button class="mission-btn${locked?' locked':''}${done?' done':''}" data-m="${i}" ${locked?'disabled':''}>
-      <b>${i+1}탄</b><small>공 ${m.balls.length}개 · ${m.desc}</small>
+      <b>${i+1}탄 · ${m.title||''}</b><small>공 ${m.balls.length}개 · ${m.desc}</small>
       <span class="m-state">${done?'✅':locked?'🔒':'▶️'}</span></button>`;
   }).join('');
   grid.querySelectorAll('.mission-btn:not(.locked)').forEach(btn =>
@@ -2346,7 +2377,7 @@ function renderMissions(){
 function startMission(i){
   currentMission = i;
   solo = true; vsAI = false; netMode = '';
-  gameMode = 'normal'; mapKey = 'rect';     // 퍼즐은 열린 당구대에서
+  gameMode = 'normal'; mapKey = MISSIONS[i].map || 'rect';
   $id('setup').classList.add('hidden');
   newGame();
 }

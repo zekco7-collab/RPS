@@ -416,11 +416,13 @@
   <div class="item-stack">
     <button class="item-btn hidden" data-item="dbl"  data-p="0">⚡ 연속 공격 (1회)</button>
     <button class="item-btn hidden" data-item="shd"  data-p="0">🛡️ 실드 (1회)</button>
+    <button class="item-btn hidden" data-item="aim"  data-p="0">🎯 조준선 (3회)</button>
     <button class="item-btn hidden" data-item="king" data-p="0">👑 속성 변경 (1회)</button>
   </div>
   <div class="item-stack right">
     <button class="item-btn hidden" data-item="dbl"  data-p="1">⚡ 연속 공격 (1회)</button>
     <button class="item-btn hidden" data-item="shd"  data-p="1">🛡️ 실드 (1회)</button>
+    <button class="item-btn hidden" data-item="aim"  data-p="1">🎯 조준선 (3회)</button>
     <button class="item-btn hidden" data-item="king" data-p="1">👑 속성 변경 (1회)</button>
   </div>
 </div>
@@ -633,7 +635,7 @@ const CX = W/2, CY = H/2;
 const BALL_R = 20, BUMPER_R = 30;
 const KING_R = 27;       // 👑 킹볼은 조금 더 크게
 const ballR = b => (b && b.isKing) ? KING_R : BALL_R;
-const FRICTION = 0.992, STOP_V = 0.04;
+const FRICTION = 0.996, STOP_V = 0.022;
 const MAX_PULL = 190, MAX_POW = 5.2;
 const ROUND_LIMIT = 20;
 const LIVES_MAX = 2;
@@ -730,6 +732,22 @@ let verts = [], bumpers = [], spawns = [];
 let balls = [];          // {x,y,vx,vy,owner,attr,protUntil}
 let particles = [];
 let shakeMag = 0;        // 화면 흔들림 세기 (연출)
+// 슬로모션 + 줌 연출 (공끼리 부딪치는 순간 클로즈업)
+const SLOWMO_FRAMES = 70;   // 슬로모션 지속(실제 프레임)
+const SLOWMO_SCALE = 0.14;  // 물리 진행 속도(0.14 = 14%, 더 느리게)
+const SLOWMO_ZOOM = 2.8;    // 클로즈업 배율
+let slowmo = { t: 0, x: CX, y: CY };  // t>0이면 슬로모션 진행 중
+let slowmoCool = 0;         // 재발동 쿨다운(실제 프레임)
+let physAccum = 0;          // 슬로모션 시 물리 서브스텝 누적기
+let camZoom = 1, camFX = CX, camFY = CY;  // 카메라 현재 줌/초점(부드럽게 보간)
+function triggerSlowmo(x, y){
+  if (slowmoCool > 0 || slowmo.t > 0) return;
+  slowmo.t = SLOWMO_FRAMES;
+  slowmo.x = x; slowmo.y = y;
+  slowmoCool = SLOWMO_FRAMES + 40;
+  addShake(11);                         // 충돌 순간 화면 펀치
+  spawnParticles(x, y, '#ffffff', 18);  // 흰 스파크 버스트
+}
 let shotCount = 0;       // 지금까지 발사된 샷 수 (짝수=P1 차례)
 let lives = [LIVES_MAX, LIVES_MAX];
 let phase = 'setup';     // setup | aim | moving | pick | over
@@ -745,7 +763,9 @@ let kingLives = [KING_LIVES, KING_LIVES];
 let turnFlip = 0;        // ⚡연속 공격으로 손번이 뒤집힌 횟수
 let doubleArmed = false; // 이번 샷이 끝나도 턴을 넘기지 않음
 let shieldArming = -1;   // 🛡️ 실드 대상 선택 중인 플레이어 (-1: 없음)
-let itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
+let aimGuideArmed = -1;  // 🎯 조준선 예측 활성화된 플레이어 (-1: 없음)
+let aimUses = [3, 3];    // 🎯 조준선 남은 사용 횟수 (플레이어별, 총 3회)
+let itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false], aim:[false,false] };
 let firstPlayer = 0;     // 선공 — 시작 전 가위바위보로 결정
 
 /* ---------- 온라인 상태 ---------- */
@@ -924,8 +944,8 @@ function resetMatchState(){
   kingLives = [KING_LIVES, KING_LIVES];
   suddenDeath = false; deathMatch = false; deathMatchStart = 0; pendingKingPick = -1;
   particles = []; pairCool.clear();
-  turnFlip = 0; doubleArmed = false; shieldArming = -1; firstPlayer = 0;
-  itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false] };
+  turnFlip = 0; doubleArmed = false; shieldArming = -1; aimGuideArmed = -1; aimUses = [3, 3]; firstPlayer = 0;
+  itemUsed = { dbl:[false,false], shd:[false,false], king:[false,false], aim:[false,false] };
   selected = null; lastWin = null;
   remoteShotActive = false; pendingSync = null; netRemotePick = null;
   if (aiTimer){ clearTimeout(aiTimer); aiTimer = null; }
@@ -1105,7 +1125,7 @@ function physicsStep(){
         const vn = b.vx*nx + b.vy*ny;
         if (vn < 0){
           b.vx -= 2*vn*nx; b.vy -= 2*vn*ny;
-          b.vx *= 0.9; b.vy *= 0.9;
+          b.vx *= 0.94; b.vy *= 0.94;
           if (Math.abs(vn) > 1.0) clack(Math.abs(vn), true);
         }
       }
@@ -1148,6 +1168,9 @@ function physicsStep(){
             if (b.bomb) exploding.add(b);
           } else {
             clack(Math.abs(rvn));
+            // 두 공이 다른 편이고 어느 정도 세게 부딪치면 → 슬로모션 클로즈업
+            if (a.owner !== b.owner && Math.abs(rvn) > 1.6)
+              triggerSlowmo((a.x+b.x)/2, (a.y+b.y)/2);
             resolveBattle(a, b, Math.abs(rvn));
           }
         }
@@ -1357,7 +1380,7 @@ function beginTurn(){
     return;
   }
   phase = 'aim';
-  shieldArming = -1;
+  shieldArming = -1; aimGuideArmed = -1;
   selected = balls.find(b => b.owner === cur());
   setMsg();
   updateHud();
@@ -1568,6 +1591,7 @@ function itemUsable(kind, p){
   if (net && p !== myIdx) return false;        // 온라인: 내 아이템만 표시
   if (kind === 'dbl')  return shotCount >= ITEM_UNLOCK_SHOT && disadvantaged(p) && !doubleArmed;
   if (kind === 'shd')  return shotCount >= ITEM_UNLOCK_SHOT;
+  if (kind === 'aim')  return aimUses[p] > 0;  // 🎯 조준선 — 남은 횟수가 있으면 사용 가능
   if (kind === 'king') return gameMode === 'king';
   return false;
 }
@@ -1576,6 +1600,10 @@ function updateItemBtns(){
     const p = +btn.dataset.p, kind = btn.dataset.item;
     btn.classList.toggle('hidden', !itemUsable(kind, p));
     if (kind === 'shd') btn.classList.toggle('arming', shieldArming === p);
+    if (kind === 'aim'){
+      btn.classList.toggle('arming', aimGuideArmed === p);
+      btn.textContent = `🎯 조준선 (${aimUses[p]}회)`;
+    }
   }
 }
 itemBtns.forEach(btn => btn.addEventListener('click', () => {
@@ -1591,6 +1619,11 @@ itemBtns.forEach(btn => btn.addEventListener('click', () => {
     // 토글: 누르면 대상 선택 모드, 다시 누르면 취소 (공을 클릭해야 소모)
     shieldArming = shieldArming === p ? -1 : p;
     if (shieldArming === p) setMsg('🛡️ 보호막을 씌울 내 공을 클릭하세요 (버튼을 다시 누르면 취소)');
+    else setMsg();
+  } else if (kind === 'aim'){
+    // 토글: 켜면 조준 중 예측선 표시, 실제로 쏘면 소모 (다시 누르면 취소)
+    aimGuideArmed = aimGuideArmed === p ? -1 : p;
+    if (aimGuideArmed === p) setMsg('🎯 조준선 ON — 공을 당겨 조준하면 예상 경로가 보입니다 (쏘면 소모)');
     else setMsg();
   } else if (kind === 'king'){
     shieldArming = -1;
@@ -1972,12 +2005,127 @@ cv.addEventListener('pointerup', e => {
   const pow = pull / MAX_PULL * MAX_POW * bonus;
   const d = Math.hypot(dx,dy);
   selected.vx = dx/d*pow; selected.vy = dy/d*pow;
+  if (aimGuideArmed === cur()){               // 🎯 조준선 사용 → 소모
+    aimUses[cur()] = Math.max(0, aimUses[cur()] - 1); aimGuideArmed = -1;
+    if (net) netSend({t:'item', kind:'aim', p:cur()});
+  }
   if (net) netSend({t:'shot', idx: balls.indexOf(selected), vx:selected.vx, vy:selected.vy});
   blip(90, .1, .15);
   phase = 'moving';
   setMsg(net ? '내 샷!' : OWNER_NAME[cur()] + ' 샷!');
 });
 cv.addEventListener('pointercancel', e => { endPointer(e); dragging = false; });
+
+/* ---------- 🎯 조준선 예측 ----------
+   큐볼을 직진시켜 벽·범퍼는 반사, 첫 공과 부딪치는 지점에서
+   타겟 공(법선 방향)과 큐볼(접선 방향)의 예상 진행 방향을 계산한다.
+   물리(physicsStep)와 같은 등질량 탄성 충돌 규칙을 따른다. */
+function computeAimGuide(ball, ux, uy){
+  const r = ballR(ball);
+  let px = ball.x, py = ball.y;
+  const pts = [{x:px, y:py}];
+  const STEP = 3, MAXLEN = 1600;
+  let traveled = 0, bounces = 0;
+  while (traveled < MAXLEN){
+    px += ux*STEP; py += uy*STEP; traveled += STEP;
+    // 다른 공과 충돌
+    let target = null;
+    for (const o of balls){
+      if (o === ball) continue;
+      const dd = Math.hypot(o.x-px, o.y-py);
+      if (dd < r + ballR(o)){ target = o; break; }
+    }
+    if (target){
+      const nx0 = target.x-px, ny0 = target.y-py, nd = Math.hypot(nx0,ny0)||1;
+      const nx = nx0/nd, ny = ny0/nd;          // 중심선(법선) → 타겟 진행 방향
+      const un = ux*nx + uy*ny;
+      let cx = ux - un*nx, cy = uy - un*ny;     // 접선 성분 → 큐볼 진행 방향
+      const cl = Math.hypot(cx,cy);
+      if (cl > 0.001){ cx/=cl; cy/=cl; } else { cx=0; cy=0; }
+      pts.push({x:px, y:py});
+      return { pts, hit:{ x:px, y:py, target, tx:nx, ty:ny, cx, cy, weak: Math.abs(un) < 0.35 } };
+    }
+    // 벽(폴리곤 변) 반사
+    let bounced = false;
+    for (let i=0;i<verts.length;i++){
+      const a=verts[i], c=verts[(i+1)%verts.length];
+      const q = closestOnSeg(px,py,a.x,a.y,c.x,c.y);
+      let wx=px-q.x, wy=py-q.y; const wd=Math.hypot(wx,wy);
+      if (wd < r && wd > 0.0001){
+        const tx = px + wx/wd*0.5, ty = py + wy/wd*0.5;
+        const s = pointInPoly(tx,ty,verts) ? 1 : -1;
+        const nx = wx/wd*s, ny = wy/wd*s;
+        px = q.x + nx*r; py = q.y + ny*r;
+        const vn = ux*nx + uy*ny;
+        if (vn < 0){ ux -= 2*vn*nx; uy -= 2*vn*ny; }
+        pts.push({x:px, y:py}); bounced = true; break;
+      }
+    }
+    if (!bounced){
+      // 범퍼 반사
+      for (const u of bumpers){
+        const bx=px-u.x, by=py-u.y, bd=Math.hypot(bx,by), mn=r+u.r;
+        if (bd < mn && bd > 0.0001){
+          const nx=bx/bd, ny=by/bd;
+          px = u.x + nx*mn; py = u.y + ny*mn;
+          const vn = ux*nx + uy*ny;
+          if (vn < 0){ ux -= 2*vn*nx; uy -= 2*vn*ny; }
+          pts.push({x:px, y:py}); bounced = true; break;
+        }
+      }
+    }
+    if (bounced && ++bounces > 4) break;
+  }
+  pts.push({x:px, y:py});
+  return { pts, hit:null };
+}
+function drawAimGuide(ball){
+  const dx = ball.x - dragX, dy = ball.y - dragY, d = Math.hypot(dx,dy);
+  if (d < 1) return;
+  const g = computeAimGuide(ball, dx/d, dy/d);
+  ctx.save();
+  // 큐볼 예상 경로(벽 반사 포함)
+  ctx.setLineDash([2,6]);
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath();
+  ctx.moveTo(g.pts[0].x, g.pts[0].y);
+  for (let i=1;i<g.pts.length;i++) ctx.lineTo(g.pts[i].x, g.pts[i].y);
+  ctx.stroke();
+  if (g.hit){
+    const h = g.hit;
+    // 충돌 지점의 고스트볼
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(h.x, h.y, ballR(ball), 0, 7);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
+    // 타겟 공 예상 방향(굵게)
+    ctx.beginPath();
+    ctx.moveTo(h.target ? h.target.x : h.x, h.target ? h.target.y : h.y);
+    const tlen = 95;
+    ctx.lineTo((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen);
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 4; ctx.lineCap='round'; ctx.stroke();
+    drawArrow((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen, h.tx, h.ty, '#ffd166');
+    // 큐볼 분리 방향
+    if (!h.weak){
+      ctx.beginPath();
+      ctx.moveTo(h.x, h.y);
+      ctx.lineTo(h.x + h.cx*70, h.y + h.cy*70);
+      ctx.strokeStyle = OWNER_COLOR[cur()]; ctx.lineWidth = 3; ctx.stroke();
+      drawArrow(h.x + h.cx*70, h.y + h.cy*70, h.cx, h.cy, OWNER_COLOR[cur()]);
+    }
+  }
+  ctx.restore();
+}
+function drawArrow(x, y, dx, dy, color){
+  const ang = Math.atan2(dy, dx), a = 9;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - a*Math.cos(ang - 0.5), y - a*Math.sin(ang - 0.5));
+  ctx.lineTo(x - a*Math.cos(ang + 0.5), y - a*Math.sin(ang + 0.5));
+  ctx.closePath();
+  ctx.fillStyle = color; ctx.fill();
+}
 
 /* ---------- 렌더링 ---------- */
 function tracePoly(){
@@ -2010,6 +2158,20 @@ function draw(){
   } else shakeMag = 0;
   ctx.save();
   ctx.translate(_sx, _sy);
+
+  // 슬로모션 클로즈업 — 충돌 지점으로 부드럽게 줌인, 끝나면 원위치로 복귀
+  const _tz = slowmo.t > 0 ? SLOWMO_ZOOM : 1;
+  const _tfx = slowmo.t > 0 ? slowmo.x : CX;
+  const _tfy = slowmo.t > 0 ? slowmo.y : CY;
+  const _ease = (_tz > camZoom) ? 0.08 : 0.05;  // 줌인/복귀 모두 천천히
+  camZoom += (_tz - camZoom) * _ease;
+  camFX += (_tfx - camFX) * 0.08;
+  camFY += (_tfy - camFY) * 0.08;
+  if (camZoom > 1.002){
+    ctx.translate(CX, CY);
+    ctx.scale(camZoom, camZoom);
+    ctx.translate(-camFX, -camFY);
+  }
 
   // 우드 프레임
   tracePoly();
@@ -2052,6 +2214,8 @@ function draw(){
     const pull = Math.min(Math.hypot(dx,dy), MAX_PULL);
     if (pull > 14){
       const d = Math.hypot(dx,dy), ux=dx/d, uy=dy/d;
+      // 🎯 조준선 아이템 — 예상 경로/충돌 예측 표시
+      if (aimGuideArmed === cur()) drawAimGuide(selected);
       ctx.save();
       ctx.setLineDash([7,8]);
       ctx.lineWidth = 3;
@@ -2165,12 +2329,27 @@ function draw(){
   ctx.stroke();
 
   ctx.restore(); // 화면 흔들림 해제
+
+  // 슬로모션 시네마틱 비네트 — 줌 세기에 비례해 가장자리를 어둡게
+  const _vig = Math.min(1, (camZoom - 1) / (SLOWMO_ZOOM - 1));
+  if (_vig > 0.01){
+    const vg = ctx.createRadialGradient(CX,CY,Math.min(W,H)*0.22, CX,CY,Math.max(W,H)*0.62);
+    vg.addColorStop(0,'rgba(0,0,0,0)');
+    vg.addColorStop(1,`rgba(0,0,0,${0.6*_vig})`);
+    ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+  }
 }
 
 /* ---------- 메인 루프 ---------- */
 function loop(){
   if (phase === 'moving'){
-    for (let s=0;s<2;s++) physicsStep();   // 서브스텝 2회로 터널링 완화
+    let steps = 2;                          // 서브스텝 2회로 터널링 완화
+    if (slowmo.t > 0){                       // 슬로모션 중엔 물리를 느리게
+      physAccum += 2 * SLOWMO_SCALE;
+      steps = Math.floor(physAccum);
+      physAccum -= steps;
+    } else physAccum = 0;
+    for (let s=0;s<steps;s++) physicsStep();
     if (allStopped() && phase === 'moving'){
       if (net && remoteShotActive){
         // 상대 샷: 내 시뮬은 참고용 — 상대가 보낸 스냅샷으로 확정
@@ -2180,6 +2359,8 @@ function loop(){
   } else if (phase === 'aim' || phase === 'pick' || phase === 'over'){
     physicsStepIdle();
   }
+  if (slowmo.t > 0) slowmo.t--;
+  if (slowmoCool > 0) slowmoCool--;
   updateItemBtns();
   draw();
   requestAnimationFrame(loop);
@@ -2263,8 +2444,8 @@ function hashRand(...nums){
 
 function sendSync(notice){
   netSend({t:'sync', balls:snapBalls(), shotCount, lives:[...lives], kingLives:[...kingLives],
-    suddenDeath, turnFlip, doubleArmed,
-    itemUsed:{dbl:[...itemUsed.dbl], shd:[...itemUsed.shd], king:[...itemUsed.king]},
+    suddenDeath, turnFlip, doubleArmed, aimUses:[...aimUses],
+    itemUsed:{dbl:[...itemUsed.dbl], shd:[...itemUsed.shd], king:[...itemUsed.king], aim:[...itemUsed.aim]},
     phase, pickMode: phase==='pick' && pickState ? pickState.mode : null,
     over: phase==='over' ? lastWin : null,
     notice: notice || null});
@@ -2274,7 +2455,7 @@ function applySync(d){
   balls = d.balls.map(b => ({...b, vx:0, vy:0}));
   shotCount = d.shotCount; lives = d.lives; kingLives = d.kingLives;
   suddenDeath = d.suddenDeath; turnFlip = d.turnFlip; doubleArmed = d.doubleArmed;
-  itemUsed = d.itemUsed;
+  itemUsed = d.itemUsed; aimUses = d.aimUses || [3, 3];
   pairCool.clear(); selected = null;
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');
@@ -2348,6 +2529,8 @@ function applyRemoteItem(d){
     if (b){ b.protUntil = Math.max(b.protUntil, shotCount + 2); spawnParticles(b.x, b.y, '#ffffff', 18); }
     blip(980,.08,.2);
     setMsg(`🛡️ ${OWNER_NAME[d.p]} 실드! 해당 공은 상대 턴까지 보호됩니다`);
+  } else if (d.kind === 'aim'){
+    aimUses[d.p] = Math.max(0, aimUses[d.p] - 1); // 🎯 상대의 조준선 사용(표시만, 게임 상태 영향 없음)
   } else if (d.kind === 'king'){
     itemUsed.king[d.p] = true;
     const k = balls.find(b => b.isKing && b.owner === d.p);

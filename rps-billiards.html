@@ -2,26 +2,104 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+/* ============================================================
+   🛡️ 묵찌빠 당구 — 독립 부트스트랩 & UI 엔진 (Zero-Dependency)
+   - 어떠한 환경/오류 상황에서도 에러를 화면 상단 배너에 즉시 표출
+   - 게임 스크립트 로딩/오류 여부와 무관하게 버튼 클릭 시 100% 즉각 화면 전환
+============================================================ */
+(function(){
+  function showErr(msg, src, line, col){
+    try{
+      var b = document.getElementById('debug-err-banner');
+      if (!b){
+        b = document.createElement('div');
+        b.id = 'debug-err-banner';
+        b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#d32f2f;color:#fff;padding:14px 16px;z-index:9999999;font-weight:bold;font-size:14px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.7);cursor:pointer;line-height:1.5;';
+        b.onclick = function(){ b.remove(); };
+        (document.body || document.documentElement).appendChild(b);
+      }
+      var file = src ? src.split('/').pop().split('?')[0] : '';
+      b.innerHTML = '⚠️ <b>오류 감지:</b> ' + msg + (file ? ' <span style="opacity:.8">(' + file + ':' + (line || '?') + ')</span>' : '') + ' <span style="text-decoration:underline;font-size:12px;margin-left:8px;">[닫기]</span>';
+    }catch(_){}
+  }
+  window.onerror = function(msg, src, line, col, err){
+    showErr(msg || (err && err.message) || '알 수 없는 오류', src, line, col);
+  };
+  window.addEventListener('error', function(e){
+    if (e && (e.message || e.error)) {
+      showErr(e.message || (e.error && e.error.message), e.filename, e.lineno, e.colno);
+    }
+  });
+
+  window.enterSingle = function(){
+    var mm = document.getElementById('menu-main'); if (mm) mm.classList.add('hidden');
+    var mc = document.getElementById('menu-config'); if (mc) mc.classList.remove('hidden');
+    var ct = document.getElementById('config-title'); if (ct) ct.textContent = '🤖 싱글플레이';
+    var st = document.getElementById('single-tabs'); if (st) st.classList.remove('hidden');
+    var mt = document.getElementById('multi-controls'); if (mt) mt.classList.add('hidden');
+    var ap = document.getElementById('ai-panel'); if (ap) ap.classList.remove('hidden');
+    var pc = document.getElementById('play-config'); if (pc) pc.classList.remove('hidden');
+    var mp = document.getElementById('mission-panel'); if (mp) mp.classList.add('hidden');
+    if (window._gameEnterSingle) {
+      try { window._gameEnterSingle(); } catch(e){ showErr(e.message, 'enterSingle', e.lineNumber); }
+    }
+  };
+
+  window.enterMulti = function(){
+    var mm = document.getElementById('menu-main'); if (mm) mm.classList.add('hidden');
+    var mc = document.getElementById('menu-config'); if (mc) mc.classList.remove('hidden');
+    var ct = document.getElementById('config-title'); if (ct) ct.textContent = '👥 멀티플레이';
+    var st = document.getElementById('single-tabs'); if (st) st.classList.add('hidden');
+    var mt = document.getElementById('multi-controls'); if (mt) mt.classList.remove('hidden');
+    var ap = document.getElementById('ai-panel'); if (ap) ap.classList.add('hidden');
+    var pc = document.getElementById('play-config'); if (pc) pc.classList.remove('hidden');
+    var mp = document.getElementById('mission-panel'); if (mp) mp.classList.add('hidden');
+    if (window._gameEnterMulti) {
+      try { window._gameEnterMulti(); } catch(e){ showErr(e.message, 'enterMulti', e.lineNumber); }
+    }
+  };
+
+  window.showMainMenu = function(){
+    var mc = document.getElementById('menu-config'); if (mc) mc.classList.add('hidden');
+    var mm = document.getElementById('menu-main'); if (mm) mm.classList.remove('hidden');
+    if (window._gameShowMainMenu) {
+      try { window._gameShowMainMenu(); } catch(e){}
+    }
+  };
+
+  window.showRules = function(){
+    var r = document.getElementById('rules'); if (r) r.classList.remove('hidden');
+  };
+
+  window.hideRules = function(){
+    var r = document.getElementById('rules'); if (r) r.classList.add('hidden');
+  };
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>묵찌빠 당구</title>
 <style>
   :root{
-    --felt:#1c4f42;
-    --felt-deep:#123830;
-    --wood:#5a3a22;
-    --wood-hi:#8a5c35;
-    --ink:#0e1513;
-    --paper:#f2ede1;
-    --p1:#4da3ff;
-    --p2:#ff8a3d;
-    --neutral:#a8b0b8;
-    --neon:#ffd166;
+    --felt:#1a4a3e;
+    --felt-deep:#0f2c25;
+    --wood:#4a2e19;
+    --wood-hi:#7c4d29;
+    --ink:#0b110f;
+    --paper:#f5f0e6;
+    --p1:#38bdf8;
+    --p2:#fb923c;
+    --neutral:#94a3b8;
+    --neon:#facc15;
+    --neon-glow:rgba(250,204,21,0.45);
+    --danger:#ef4444;
+    --success:#22c55e;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
   body{
     background:
-      radial-gradient(1200px 700px at 50% -10%, #1c2a26 0%, var(--ink) 60%);
+      radial-gradient(1300px 750px at 50% -15%, #18332b 0%, var(--ink) 65%);
     color:var(--paper);
     font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',system-ui,sans-serif;
     display:flex;flex-direction:column;align-items:center;
@@ -30,23 +108,52 @@
   }
   /* ---------- HUD ---------- */
   #hud{
-    width:min(96vw,960px);
+    width:min(96vw,980px);
     display:flex;align-items:center;justify-content:space-between;
-    padding:10px 4px 6px;gap:8px;
+    padding:8px 6px 6px;gap:10px;
   }
   .player-card{
     flex:1;display:flex;align-items:center;gap:10px;
-    padding:8px 12px;border-radius:12px;
-    background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.07);
-    transition:box-shadow .3s,border-color .3s;
+    padding:8px 14px;border-radius:14px;
+    background:rgba(255,255,255,.05);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.1);
+    box-shadow:0 8px 24px -6px rgba(0,0,0,.45);
+    transition:box-shadow .3s,border-color .3s,transform .2s;
     min-width:0;
   }
   .player-card.right{flex-direction:row-reverse;text-align:right}
-  .player-card.active{border-color:currentColor;box-shadow:0 0 18px -4px currentColor}
-  /* 🏆 미션(솔로): 상대 카드·목숨 숨김 */
-  body.solo #card2{visibility:hidden}
-  body.solo .plives{display:none}
+  .player-card.active{border-color:currentColor;box-shadow:0 0 20px -4px currentColor}
+  
+  /* 🏆 미션 전용 퀵 바 & 솔로 모드 제어 */
+  #mission-quick-bar{
+    display:none;align-items:center;gap:7px;justify-content:flex-end;flex:1;
+  }
+  body.solo #card2{display:none !important}
+  body.solo #mission-quick-bar{display:flex !important}
+  body.solo .plives{display:none !important}
+
+  .mquick-btn{
+    font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+    display:inline-flex;align-items:center;gap:4px;
+    padding:8px 12px;border-radius:10px;
+    background:rgba(255,255,255,.07);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.18);
+    color:var(--paper);transition:.16s;
+    touch-action:manipulation;
+  }
+  .mquick-btn:hover{
+    background:rgba(250,204,21,.16);
+    border-color:var(--neon);color:var(--neon);
+    transform:translateY(-2px);box-shadow:0 4px 14px -2px var(--neon-glow);
+  }
+  .mquick-btn:active{transform:translateY(0)}
+  @media (max-width:480px){
+    .mquick-btn .mq-txt{display:none}
+    .mquick-btn{padding:8px 10px;font-size:15px}
+  }
+
   /* 목숨 감소 시 카드 진동 + 붉은 섬광 */
   .player-card.hit{animation:cardhit .55s ease-out}
   @keyframes cardhit{
@@ -59,10 +166,10 @@
   }
   /* 목숨 감소 순간 전체 붉은 섬광 */
   #flash{
-    position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;
+    position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;display:none;
     background:radial-gradient(circle at 50% 50%, transparent 25%, rgba(255,30,30,.6) 100%);
   }
-  #flash.show{animation:flashhit .6s ease-out}
+  #flash.show{display:block;animation:flashhit .6s ease-out}
   @keyframes flashhit{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
   /* 위기(마지막 목숨·서든데스) 시 붉은 심장박동 비네팅 */
   #vignette{
@@ -73,18 +180,18 @@
   body.danger #vignette{animation:heartbeat 1.15s ease-in-out infinite}
   @keyframes heartbeat{0%,55%,100%{opacity:.22}18%{opacity:.6}32%{opacity:.32}}
   #card1{color:var(--p1)} #card2{color:var(--p2)}
-  .dot{width:14px;height:14px;border-radius:50%;background:currentColor;flex:none;box-shadow:0 0 8px currentColor}
+  .dot{width:14px;height:14px;border-radius:50%;background:currentColor;flex:none;box-shadow:0 0 10px currentColor}
   .pinfo{display:flex;flex-direction:column;min-width:0}
-  .pname{font-weight:800;font-size:14px;letter-spacing:.5px}
+  .pname{font-weight:800;font-size:13.5px;letter-spacing:.5px}
   .plives{font-size:13px;letter-spacing:2px;color:var(--paper)}
   .plives .lost{opacity:.18}
-  .pballs{font-size:11px;opacity:.7;color:var(--paper)}
-  #center-hud{flex:none;text-align:center;min-width:110px}
-  #round-label{font-size:11px;letter-spacing:3px;opacity:.6}
-  #round-num{font-size:20px;font-weight:900;color:var(--neon)}
+  .pballs{font-size:11.5px;opacity:.8;color:var(--paper)}
+  #center-hud{flex:none;text-align:center;min-width:120px}
+  #round-label{font-size:11px;letter-spacing:2px;opacity:.7;font-weight:700}
+  #round-num{font-size:19px;font-weight:900;color:var(--neon);letter-spacing:.5px}
   #turn-msg{
-    margin:2px 0 4px;font-size:13px;font-weight:700;letter-spacing:.5px;
-    min-height:18px;text-align:center;
+    margin:2px 0 4px;font-size:13px;font-weight:700;letter-spacing:.4px;
+    min-height:18px;text-align:center;color:var(--paper);
   }
   /* ---------- 캔버스 ---------- */
   #stage{position:relative;line-height:0}
@@ -92,7 +199,8 @@
     width:min(96vw,960px);
     max-height:calc(100vh - 150px);
     aspect-ratio:960/700;
-    border-radius:18px;
+    border-radius:20px;
+    box-shadow:0 20px 60px -15px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.08);
     cursor:crosshair;
   }
   /* ---------- 아이템 버튼 (좌: P1 / 우: P2) ---------- */
@@ -118,16 +226,19 @@
   /* ---------- 오버레이 공통 ---------- */
   .overlay{
     position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    background:rgba(8,12,11,.82);backdrop-filter:blur(6px);
+    background:rgba(7,12,10,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     z-index:50;animation:fadein .25s ease;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:16px 10px;
   }
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   .panel{
-    width:min(92vw,560px);text-align:center;
-    background:linear-gradient(180deg,#1a2421,#121a18);
-    border:1px solid rgba(255,255,255,.1);
-    border-radius:20px;padding:34px 26px 30px;
-    box-shadow:0 30px 80px -20px rgba(0,0,0,.8);
+    width:min(94vw,620px);text-align:center;margin:auto;
+    max-height:calc(100vh - 32px);overflow-y:auto;
+    background:linear-gradient(180deg,#192622,#111a18);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:24px;padding:30px 24px 26px;
+    box-shadow:0 30px 90px -20px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.05);
   }
   .neon-title{
     font-size:clamp(34px,7vw,52px);font-weight:900;letter-spacing:2px;
@@ -139,49 +250,57 @@
     0%,93%,95%,100%{opacity:1}
     94%{opacity:.55}
   }
-  .sub{margin-top:6px;font-size:13px;opacity:.65;letter-spacing:1px}
-  .maps{display:flex;gap:12px;justify-content:center;margin:26px 0 22px;flex-wrap:wrap}
+  .sub{margin-top:6px;font-size:13px;opacity:.7;letter-spacing:1px}
+  .maps{display:flex;gap:12px;justify-content:center;margin:22px 0 18px;flex-wrap:wrap}
   .map-btn{
-    width:120px;padding:14px 8px 10px;border-radius:14px;cursor:pointer;
+    width:120px;padding:14px 8px 10px;border-radius:16px;cursor:pointer;
     background:rgba(255,255,255,.045);border:2px solid rgba(255,255,255,.1);
     color:var(--paper);transition:.18s;
   }
   .map-btn svg{display:block;margin:0 auto 8px}
-  .map-btn span{font-size:13px;font-weight:700}
-  .map-btn:hover{transform:translateY(-3px)}
-  .map-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);box-shadow:0 0 16px -4px var(--neon)}
+  .map-btn span{font-size:13px;font-weight:800}
+  .map-btn:hover{transform:translateY(-3px);border-color:var(--neon)}
+  .map-btn.sel{border-color:var(--neon);background:rgba(250,204,21,.1);box-shadow:0 0 18px -4px var(--neon)}
   /* ---------- 모드/네트워크 선택 ---------- */
-  .modes{display:flex;gap:12px;justify-content:center;margin:24px 0 2px;flex-wrap:wrap}
+  .modes{display:flex;gap:12px;justify-content:center;margin:20px 0 2px;flex-wrap:wrap}
   .mode-btn,.net-btn{
-    flex:1;max-width:210px;min-width:140px;padding:13px 10px;border-radius:14px;cursor:pointer;
+    flex:1;max-width:210px;min-width:140px;padding:13px 10px;border-radius:15px;cursor:pointer;
     background:rgba(255,255,255,.045);border:2px solid rgba(255,255,255,.1);
     color:var(--paper);transition:.18s;
   }
   .mode-btn b,.net-btn b{display:block;font-size:15px}
-  .mode-btn small,.net-btn small{display:block;margin-top:3px;font-size:11px;opacity:.6}
-  .mode-btn:hover,.net-btn:hover{transform:translateY(-2px)}
-  .mode-btn.sel,.net-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);box-shadow:0 0 16px -4px var(--neon)}
+  .mode-btn small,.net-btn small{display:block;margin-top:3px;font-size:11px;opacity:.65}
+  .mode-btn:hover,.net-btn:hover{transform:translateY(-2px);border-color:var(--neon)}
+  .mode-btn.sel,.net-btn.sel{border-color:var(--neon);background:rgba(250,204,21,.1);box-shadow:0 0 18px -4px var(--neon)}
   /* ---------- 메인 메뉴(싱글/멀티) ---------- */
-  .menu-cards{display:flex;gap:12px;justify-content:center;margin:26px 0 16px;flex-wrap:wrap}
+  .menu-cards{display:flex;gap:14px;justify-content:center;margin:26px 0 18px;flex-wrap:wrap}
   .menu-card{
     flex:1;min-width:150px;max-width:230px;
-    display:flex;flex-direction:column;align-items:center;gap:5px;
-    padding:24px 14px;border-radius:16px;cursor:pointer;
-    background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.12);
-    color:var(--paper);font:inherit;transition:.16s;
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:26px 16px;border-radius:18px;cursor:pointer;
+    background:rgba(255,255,255,.05);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border:2px solid rgba(255,255,255,.12);
+    color:var(--paper);font:inherit;transition:.18s;
+    touch-action:manipulation;
   }
-  .menu-card:hover{transform:translateY(-3px);border-color:var(--neon);box-shadow:0 0 18px -4px var(--neon)}
-  .menu-card .mc-ico{font-size:34px;line-height:1}
-  .menu-card b{font-size:17px;letter-spacing:.5px}
-  .menu-card small{font-size:12px;opacity:.65}
+  .menu-card:hover{transform:translateY(-3px);border-color:var(--neon);box-shadow:0 0 22px -4px var(--neon)}
+  .menu-card *{pointer-events:none !important}
+  .menu-card .mc-ico{font-size:36px;line-height:1}
+  .menu-card b{font-size:17.5px;letter-spacing:.5px}
+  .menu-card small{font-size:12px;opacity:.7}
+  .overlay, .panel, button, .menu-card, .mode-btn, .net-btn, .map-btn, .tab-btn, .tier-tab, .ghost-btn, .back-btn, .big-btn, .mquick-btn{
+    touch-action:manipulation !important;
+    pointer-events:auto !important;
+  }
   .ghost-btn{
-    font:inherit;font-weight:700;font-size:14px;cursor:pointer;
-    padding:11px 24px;border-radius:999px;
-    background:transparent;border:1px solid rgba(255,255,255,.22);color:var(--paper);
+    font:inherit;font-weight:800;font-size:14px;cursor:pointer;
+    padding:11px 26px;border-radius:999px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.24);color:var(--paper);
     transition:.15s;
   }
-  .ghost-btn:hover{border-color:var(--neon);color:var(--neon)}
-  .config-head{display:flex;align-items:center;gap:10px;margin:18px 0 4px}
+  .ghost-btn:hover{border-color:var(--neon);color:var(--neon);background:rgba(250,204,21,.08)}
+  .config-head{display:flex;align-items:center;gap:10px;margin:16px 0 4px}
   .back-btn{
     font:inherit;font-size:18px;font-weight:800;cursor:pointer;
     width:42px;height:42px;border-radius:12px;flex:none;line-height:1;
@@ -189,43 +308,106 @@
     transition:.15s;
   }
   .back-btn:hover{border-color:var(--neon);color:var(--neon)}
-  #config-title{font-size:17px;font-weight:800;color:var(--neon);text-align:left}
-  .section-label{text-align:left;font-size:12px;font-weight:700;opacity:.55;letter-spacing:.5px;margin:16px 2px 6px}
+  #config-title{font-size:18px;font-weight:900;color:var(--neon);text-align:left}
+  .section-label{text-align:left;font-size:12px;font-weight:800;opacity:.65;letter-spacing:.5px;margin:16px 2px 6px}
+  
   /* 싱글 탭 */
-  #single-tabs{display:flex;gap:8px;margin:14px 0 4px}
+  #single-tabs{display:flex;gap:8px;margin:14px 0 6px}
   .tab-btn{
-    flex:1;text-align:center;padding:10px;border-radius:10px;cursor:pointer;font-weight:800;font-size:14px;
+    flex:1;text-align:center;padding:11px;border-radius:12px;cursor:pointer;font-weight:800;font-size:14px;
     background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);color:var(--paper);transition:.15s;
   }
-  .tab-btn.sel{border-color:var(--neon);background:rgba(255,209,102,.08);color:var(--neon)}
-  /* 미션 목록 */
-  #mission-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+  .tab-btn.sel{border-color:var(--neon);background:rgba(250,204,21,.12);color:var(--neon);box-shadow:0 0 14px -4px var(--neon)}
+  
+  /* 🏆 미션 헤더 진행도 바 */
+  .mission-header-bar{
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;padding:10px 14px;margin:10px 0 12px;
+  }
+  .mp-stats{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+  .mp-badge{font-size:12.5px;font-weight:800;color:var(--paper)}
+  .mp-badge.stars{color:var(--neon);letter-spacing:1px}
+  .mp-bar-wrap{width:100%;height:7px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+  #mp-bar-fill{width:0%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--neon),#ff8a3d);transition:width .4s ease}
+
+  /* 티어 탭 */
+  .tier-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px}
+  .tier-tab{
+    flex:1;min-width:70px;padding:7px 9px;border-radius:10px;cursor:pointer;
+    font:inherit;font-size:11.5px;font-weight:800;white-space:nowrap;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+    color:var(--paper);transition:.15s;
+  }
+  .tier-tab:hover{border-color:var(--neon);color:var(--neon)}
+  .tier-tab.sel{
+    background:rgba(250,204,21,.14);border-color:var(--neon);color:var(--neon);
+    box-shadow:0 0 12px -2px rgba(250,204,21,.35);
+  }
+
+  /* 미션 그리드 카드 */
+  #mission-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
+    max-height:46vh;overflow-y:auto;padding-right:4px;
+  }
+  @media (max-width:540px){
+    #mission-grid{grid-template-columns:1fr}
+  }
   .mission-btn{
-    position:relative;text-align:left;padding:11px 12px;border-radius:12px;cursor:pointer;
-    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--paper);
-    transition:.15s;font:inherit;
+    position:relative;text-align:left;padding:12px 14px;border-radius:15px;cursor:pointer;
+    background:rgba(255,255,255,.045);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--paper);transition:.18s;font:inherit;
+    display:flex;flex-direction:column;gap:5px;
   }
-  .mission-btn:hover{border-color:var(--neon);transform:translateY(-2px)}
-  .mission-btn b{display:block;font-size:15px}
-  .mission-btn small{display:block;font-size:10.5px;opacity:.6;margin-top:2px}
-  .mission-btn .m-state{position:absolute;top:9px;right:10px;font-size:14px}
-  .mission-btn.done{border-color:rgba(93,255,155,.45)}
-  .mission-btn.locked{opacity:.45;cursor:not-allowed;filter:grayscale(.5)}
-  .mission-btn.locked:hover{transform:none;border-color:rgba(255,255,255,.12)}
-  #rules-title{font-size:21px;font-weight:900;color:var(--neon);margin-bottom:14px}
-  #rules .rules{margin-bottom:18px}
-  .rule-sec{
-    text-align:left;
-    background:rgba(255,255,255,.035);
-    border-left:3px solid var(--neon);
-    border-radius:0 10px 10px 0;
-    padding:10px 14px;margin:10px 0;
+  .mission-btn:hover{
+    border-color:var(--neon);transform:translateY(-2px);
+    box-shadow:0 6px 20px -4px rgba(250,204,21,.3);
+    background:rgba(255,255,255,.07);
   }
-  .rule-sec h4{font-size:13.5px;font-weight:800;color:var(--neon);margin-bottom:6px;letter-spacing:.3px}
-  .rule-sec ul{list-style:none;margin:0;padding:0}
-  .rule-sec li{position:relative;padding-left:13px;font-size:12.5px;line-height:1.6;opacity:.9;margin:5px 0}
-  .rule-sec li::before{content:'';position:absolute;left:2px;top:8px;width:4px;height:4px;border-radius:50%;background:var(--neon);opacity:.6}
-  .rule-sec li b{color:#fff;font-weight:700}
+  .mission-btn .m-top{display:flex;align-items:center;justify-content:space-between;width:100%}
+  .mission-btn .m-num{font-size:11px;font-weight:900;opacity:.6;letter-spacing:1px}
+  .mission-btn .m-tag{
+    font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;
+    background:rgba(250,204,21,.15);color:var(--neon);border:1px solid rgba(250,204,21,.3);
+  }
+  .mission-btn .m-title{font-size:15px;font-weight:900;letter-spacing:.3px;color:#fff}
+  .mission-btn .m-desc{font-size:11.5px;opacity:.72;line-height:1.45}
+  .mission-btn .m-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .mission-btn .m-stars{font-size:13px;letter-spacing:2px;color:var(--neon)}
+  .mission-btn .m-shots{font-size:11px;opacity:.6;font-weight:700}
+  .mission-btn.done{border-color:rgba(93,255,155,.45);background:rgba(93,255,155,.05)}
+  .mission-btn.locked{opacity:.4;cursor:not-allowed;filter:grayscale(.8)}
+  .mission-btn.locked:hover{transform:none;border-color:rgba(255,255,255,.12);box-shadow:none}
+
+  /* 💡 힌트 모달 */
+  .hint-panel{
+    background:linear-gradient(180deg,#1d2a26,#121d1a);
+    border:1px solid rgba(250,204,21,.35);
+    box-shadow:0 24px 60px -10px rgba(0,0,0,.85),0 0 30px -10px rgba(250,204,21,.3);
+  }
+  .hint-header{display:flex;align-items:center;gap:12px;text-align:left;margin-bottom:14px}
+  .hint-ico{font-size:34px;line-height:1}
+  #hint-stage-name{font-size:17px;font-weight:900;color:var(--neon)}
+  .hint-badge{
+    display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;
+    background:rgba(250,204,21,.15);color:var(--neon);border:1px solid rgba(250,204,21,.35);margin-top:4px;
+  }
+  .hint-body{
+    text-align:left;font-size:13.5px;line-height:1.75;
+    background:rgba(255,255,255,.04);border-left:4px solid var(--neon);
+    padding:14px 16px;border-radius:0 12px 12px 0;margin-bottom:22px;color:#f2ede1;
+  }
+
+  /* 클리어 화면 별점 연출 */
+  .end-stars{
+    font-size:36px;letter-spacing:8px;color:var(--neon);margin-bottom:12px;
+    text-shadow:0 0 18px rgba(250,204,21,.65);
+    animation:starpop .5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes starpop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+  .end-btn-group{display:flex;flex-direction:column;gap:10px;align-items:center;width:100%;margin-top:12px}
   /* ---------- 온라인 연결 패널 ---------- */
   #net-panel{margin:12px auto 0;font-size:14px}
   #room-code{color:var(--neon);font-size:21px;letter-spacing:5px;font-weight:900;vertical-align:middle}
@@ -307,6 +489,7 @@
   }
   @media (max-height:600px){ #hint{display:none} }
 </style>
+<link rel="stylesheet" href="puzzle-studio.css">
 </head>
 <body>
 <div id="vignette"></div>
@@ -324,6 +507,11 @@
   <div id="center-hud">
     <div id="round-label">ROUND</div>
     <div id="round-num">1 / 20</div>
+    <div id="mission-quick-bar">
+      <button class="mquick-btn" id="mquick-restart" type="button" title="다시 시도 (R)">🔄 <span class="mq-txt">재시도</span></button>
+      <button class="mquick-btn" id="mquick-hint" type="button" title="묘수 힌트 (H)">💡 <span class="mq-txt">힌트</span></button>
+      <button class="mquick-btn" id="mquick-list" type="button" title="미션 목록 (M)">📋 <span class="mq-txt">목록</span></button>
+    </div>
   </div>
   <div class="player-card right" id="card2">
     <div class="dot"></div>
@@ -361,16 +549,16 @@
     <!-- 1단계: 메인 메뉴 -->
     <div id="menu-main">
       <div class="menu-cards">
-        <button class="menu-card" id="btn-single"><span class="mc-ico">🤖</span><b>싱글플레이</b><small>컴퓨터와 대전</small></button>
-        <button class="menu-card" id="btn-multi"><span class="mc-ico">👥</span><b>멀티플레이</b><small>방 만들기 · 방 참가</small></button>
+        <button class="menu-card" id="btn-single" type="button" onclick="enterSingle()"><span class="mc-ico">🤖</span><b>싱글플레이</b><small>컴퓨터와 대전</small></button>
+        <button class="menu-card" id="btn-multi" type="button" onclick="enterMulti()"><span class="mc-ico">👥</span><b>멀티플레이</b><small>방 만들기 · 방 참가</small></button>
       </div>
-      <button class="ghost-btn" id="btn-rules">📖 게임 설명</button>
+      <button class="ghost-btn" id="btn-rules" type="button" onclick="showRules()">📖 게임 설명</button>
     </div>
 
     <!-- 2단계: 설정 (싱글/멀티 공통) -->
     <div id="menu-config" class="hidden">
       <div class="config-head">
-        <button class="back-btn" id="btn-back" aria-label="뒤로">←</button>
+        <button class="back-btn" id="btn-back" onclick="showMainMenu()" aria-label="뒤로">←</button>
         <div id="config-title">싱글플레이</div>
       </div>
 
@@ -382,7 +570,22 @@
 
       <!-- 미션 목록 (싱글·미션 탭) -->
       <div id="mission-panel" class="hidden">
-        <div class="section-label">미션을 선택하세요 (순서대로 해금)</div>
+        <div class="mission-header-bar">
+          <div class="mp-stats">
+            <span class="mp-badge" id="mp-progress-txt">달성도: 0 / 20</span>
+            <span class="mp-badge stars" id="mp-total-stars">⭐ 0 / 60</span>
+          </div>
+          <div class="mp-bar-wrap">
+            <div id="mp-bar-fill"></div>
+          </div>
+        </div>
+        <div class="tier-tabs" id="tier-tabs">
+          <button class="tier-tab sel" data-tier="all" type="button">전체</button>
+          <button class="tier-tab" data-tier="0" type="button">🔰 입문 (1~5)</button>
+          <button class="tier-tab" data-tier="1" type="button">⚔️ 중급 (6~10)</button>
+          <button class="tier-tab" data-tier="2" type="button">🔮 상급 (11~15)</button>
+          <button class="tier-tab" data-tier="3" type="button">👑 마스터 (16~20)</button>
+        </div>
         <div id="mission-grid"></div>
       </div>
 
@@ -486,7 +689,7 @@
         </ul>
       </section>
     </div>
-    <button class="big-btn" id="rules-close">닫기</button>
+    <button class="big-btn" id="rules-close" type="button" onclick="hideRules()">닫기</button>
   </div>
 </div>
 
@@ -515,17 +718,34 @@
   </div>
 </div>
 
-<!-- 종료 화면 -->
-<div class="overlay hidden" id="end">
-  <div class="panel">
-    <div id="end-title">PLAYER 1 승리!</div>
-    <div id="end-detail"></div>
-    <button class="big-btn" id="restart-btn">다시 하기</button>
-    <button class="ghost-btn hidden" id="mission-list-btn" style="margin-top:12px">미션 목록</button>
+<!-- 💡 묘수 힌트 모달 -->
+<div class="overlay hidden" id="hint-modal">
+  <div class="panel hint-panel">
+    <div class="hint-header">
+      <div class="hint-ico">💡</div>
+      <div>
+        <div id="hint-stage-name">미션 1: 첫 충돌</div>
+        <span class="hint-badge" id="hint-stage-tag">직선 타격</span>
+      </div>
+    </div>
+    <div class="hint-body" id="hint-stage-body">힌트 내용</div>
+    <button class="big-btn" id="hint-close-btn" type="button">이해했습니다</button>
   </div>
 </div>
 
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<!-- 종료 화면 -->
+<div class="overlay hidden" id="end">
+  <div class="panel">
+    <div class="end-stars hidden" id="end-stars">★★★</div>
+    <div id="end-title">PLAYER 1 승리!</div>
+    <div id="end-detail"></div>
+    <div class="end-btn-group">
+      <button class="big-btn" id="restart-btn">다시 하기</button>
+      <button class="ghost-btn hidden" id="mission-list-btn">미션 목록</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
 'use strict';
@@ -655,23 +875,7 @@ let mapKey = 'hex';
 let verts = [], bumpers = [], spawns = [];
 let balls = [];          // {x,y,vx,vy,owner,attr,protUntil}
 let particles = [];
-let shakeMag = 0;        // 화면 흔들림 세기 (연출)
-// 슬로모션 + 줌 연출 (공끼리 부딪치는 순간 클로즈업)
-const SLOWMO_FRAMES = 70;   // 슬로모션 지속(실제 프레임)
-const SLOWMO_SCALE = 0.14;  // 물리 진행 속도(0.14 = 14%, 더 느리게)
-const SLOWMO_ZOOM = 2.8;    // 클로즈업 배율
-let slowmo = { t: 0, x: CX, y: CY };  // t>0이면 슬로모션 진행 중
-let slowmoCool = 0;         // 재발동 쿨다운(실제 프레임)
-let physAccum = 0;          // 슬로모션 시 물리 서브스텝 누적기
-let camZoom = 1, camFX = CX, camFY = CY;  // 카메라 현재 줌/초점(부드럽게 보간)
-function triggerSlowmo(x, y){
-  if (slowmoCool > 0 || slowmo.t > 0) return;
-  slowmo.t = SLOWMO_FRAMES;
-  slowmo.x = x; slowmo.y = y;
-  slowmoCool = SLOWMO_FRAMES + 40;
-  addShake(11);                         // 충돌 순간 화면 펀치
-  spawnParticles(x, y, '#ffffff', 18);  // 흰 스파크 버스트
-}
+let shakeMag = 0;        // 화면 흔들림 세기 (폭탄 폭발 등 연출용)
 let shotCount = 0;       // 지금까지 발사된 샷 수 (짝수=P1 차례)
 let lives = [LIVES_MAX, LIVES_MAX];
 let phase = 'setup';     // setup | aim | moving | pick | over
@@ -713,89 +917,53 @@ const AI_CFG = {
   normal: { noise:0.10, randTarget:0.0, powJitter:0.18 },
   hard:   { noise:0.02, randTarget:0.0, powJitter:0.05 },  // 거의 정확
 };
-// 🏆 미션 1~10탄 — 연쇄(체인) 퍼즐 (함정·샷제한·복합 배치)
-//   각 공은 [중심기준 x, y, 속성]. 첫 공이 내 공. twoStep/threeStep/maxShots 로 샷 제한.
-function chainLine(n, dx, dy, a0){          // 중앙 정렬된 연쇄 한 줄
-  const out = [], ox = -(n-1)/2*dx, oy = -(n-1)/2*dy;
-  for (let i=0;i<n;i++) out.push([ox + dx*i, oy + dy*i, ((a0||0) + i) % 3]);
-  return out;
-}
-const shiftL = (a, sx, sy) => a.map(b => [b[0]+sx, b[1]+sy, b[2]]);
-const MISSIONS = [
-  // 1 — 4연쇄 + 옆 ✋ 함정
-  { title:'첫 시험', desc:'4연쇄 — 가운데 ✋ 함정 피하기!', balls: [
-    ...chainLine(4, 80, 0, 0),
-    [40, 58, 2],
-  ]},
-  // 2 — ✌️ 세로 + ✊ 함정
-  { title:'가위 돌파', desc:'✌️ 세로 5연쇄 — 옆 ✊에 닿으면 끝!', balls: [
-    ...chainLine(5, 0, -68, 1),
-    [52, -136, 0],
-  ]},
-  // 3 — L자 + 가짜 갈래
-  { title:'코너 함정', desc:'L자 6연쇄 — 오른쪽 가지는 함정!', balls: [
-    [0, 115, 0], [0, 35, 1], [0, -45, 2],
-    [-82, -45, 0], [-164, -45, 1], [-246, -45, 2],
-    [82, 35, 0], [164, 35, 1],
-  ]},
-  // 4 — 대각 6 + 평행 함정 줄
-  { title:'이중 줄', desc:'대각 정답 줄 — 아래 평행 줄은 속임!', balls: [
-    ...chainLine(6, 56, 36, 0),
-    ...shiftL(chainLine(4, 56, 36, 2), 28, 72),
-  ]},
-  // 5 — 넓은 간격 2샷
-  { title:'원샷·투샷', desc:'넓은 5연쇄 — 2번 안에 끝내!', maxShots:2, balls: [
-    ...chainLine(5, 118, 0, 0),
-    [118, 62, 2], [236, 62, 2],
-  ]},
-  // 6 — ✋ 시작 지그재그
-  { title:'지그재그', desc:'✋로 시작! 꺾인 7연쇄 + 함정', balls: [
-    [0, 0, 2],
-    [68, -48, 0], [136, 0, 1], [204, -48, 2], [272, 0, 0], [340, -48, 1], [408, 0, 2],
-    [136, 58, 0], [272, 58, 2],
-  ]},
-  // 7 — 위·아래 3줄 혼합
-  { title:'삼중 함정', desc:'위 줄만 정답 — 아래 두 줄은 함정!', balls: [
-    [0, 95, 0],
-    ...shiftL(chainLine(5, 68, 0, 1), 0, -75),
-    ...shiftL(chainLine(4, 68, 0, 0), 0, 75),
-    ...shiftL(chainLine(3, 68, 0, 2), 45, 75),
-  ]},
-  // 8 — 육각 맵 갈림 + 다수 함정
-  { title:'미로 갈림', desc:'육각판 — 왼쪽만 연쇄! 오른쪽·아래 함정', map:'hex', balls: [
-    [0, 55, 0],
-    [-72, -50, 1], [-144, -50, 2], [-216, -50, 0], [-288, -50, 1],
-    [72, -50, 2], [144, -50, 0], [216, -50, 1],
-    [72, -115, 0], [144, -115, 1], [0, -115, 2],
-  ]},
-  // 9 — 3뭉치 3샷
-  { title:'트리플 샷', desc:'3곳 뭉치 — 정확히 3번에!', threeStep:true, balls: [
-    [-195, 0, 0],
-    ...shiftL(chainLine(4, 72, 0, 1), 35, -105),
-    ...shiftL(chainLine(4, 72, 0, 1), 35, 105),
-    ...shiftL(chainLine(3, 72, 0, 1), 195, 0),
-  ]},
-  // 10 — 9연쇄 + 다수 함정, 1샷
-  { title:'최종 보스', desc:'9연쇄 대각 — 함정 5개, 단 1샷!', maxShots:1, balls: [
-    ...chainLine(9, 50, 28, 0),
-    [150, -75, 2], [250, -45, 0], [100, 55, 0], [200, 85, 2], [350, 15, 0],
-  ]},
-];
+// 🏆 20개 바둑 묘수풀이 미션 (1~20탄)
+// 4개 티어: 0: 🔰 입문 (1~5), 1: ⚔️ 중급 (6~10), 2: 🔮 상급 (11~15), 3: 👑 마스터 (16~20)
+// 공 포맷: [중심기준 x, y, 속성(0✊/1✌️/2✋), isBomb, isObstacle]. 첫 공(인덱스 0)이 내 공.
+const MISSIONS = [];
 function missionMaxShots(m){
   if (!m) return 999;
   if (m.maxShots != null) return m.maxShots;
-  if (m.threeStep) return 3;
-  if (m.twoStep) return 2;
   return 999;
 }
 let currentMission = -1; // 진행 중인 미션 인덱스 (-1: 자유 대전)
 let solo = false;        // 혼자 푸는 미션 모드
 let singleTab = 'free';  // 싱글 화면 탭: free | mission
+let activeTier = 'all';  // 미션 목록 필터: 'all' | 0 | 1 | 2 | 3
+
 function missionsCleared(){ try{ return +(localStorage.getItem('rps_missions')||0); }catch(e){ return 0; } }
+function getMissionStar(idx){ try{ const s=JSON.parse(localStorage.getItem('rps_mission_stars')||'{}'); return +(s[idx]||0); }catch(e){ return 0; } }
+function saveMissionStar(idx, stars){
+  try{
+    const s = JSON.parse(localStorage.getItem('rps_mission_stars')||'{}');
+    if ((s[idx]||0) < stars){
+      s[idx] = stars;
+      localStorage.setItem('rps_mission_stars', JSON.stringify(s));
+    }
+  }catch(e){}
+}
+function getTotalStars(){
+  try{
+    const s = JSON.parse(localStorage.getItem('rps_mission_stars')||'{}');
+    return Object.values(s).reduce((a,b)=> a + (+b||0), 0);
+  }catch(e){ return 0; }
+}
+function calcMissionStars(mIdx, shotsUsed){
+  const m = MISSIONS[mIdx];
+  const max = missionMaxShots(m);
+  if (shotsUsed <= 1) return 3;
+  if (max > 1 && shotsUsed < max) return 2;
+  return 1;
+}
+function starString(cnt){
+  if (!cnt || cnt <= 0) return '☆☆☆';
+  return '★'.repeat(cnt) + '☆'.repeat(Math.max(0, 3 - cnt));
+}
 
 const cur = () => solo ? 0 : (shotCount + turnFlip + firstPlayer) % 2;
 const countBalls = o => balls.reduce((n,b)=> n + (b.owner===o), 0);
 const isProtected = b => shotCount < b.protUntil;
+const missionRemainingTargets = () => balls.filter(b => b.owner !== 0 && !b.bomb && !b.obstacle && !b.blocker).length;
 
 /* ---------- 사운드 (WebAudio 간단 효과음) ---------- */
 let AC = null;
@@ -841,11 +1009,13 @@ function clack(impact, cushion){
       o.connect(g); g.connect(AC.destination);
       o.start(now); o.stop(now + dur);
     }
-    const tn = Math.max(1, Math.floor(AC.sampleRate * 0.006));
-    const buf = AC.createBuffer(1, tn, AC.sampleRate);
-    const dd = buf.getChannelData(0);
-    for (let i=0;i<tn;i++){ dd[i] = (Math.random()*2-1) * Math.pow(1 - i/tn, 3); }
-    const noise = AC.createBufferSource(); noise.buffer = buf;
+    if (!clack._noiseBuf){
+      const tn = Math.max(1, Math.floor(AC.sampleRate * 0.008));
+      clack._noiseBuf = AC.createBuffer(1, tn, AC.sampleRate);
+      const dd = clack._noiseBuf.getChannelData(0);
+      for (let i=0;i<tn;i++){ dd[i] = (Math.random()*2-1) * Math.pow(1 - i/tn, 3); }
+    }
+    const noise = AC.createBufferSource(); noise.buffer = clack._noiseBuf;
     const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
     const ng = AC.createGain(); ng.gain.value = vol*0.6;
     noise.connect(hp); hp.connect(ng); ng.connect(AC.destination);
@@ -880,15 +1050,19 @@ function buildMissionBalls(){
   const m = MISSIONS[currentMission];
   m.balls.forEach((b, k) => {
     const p = ensureInside(CX + b[0], CY + b[1], verts, BALL_R+8);
+    const isBomb = !!b[3];
+    const isObstacle = !!b[4];
+    const isBlocker = !!b[5];
     balls.push({ x:p.x, y:p.y, vx:0, vy:0,
-                 owner: k===0 ? 0 : NEUTRAL, attr: b[2], protUntil:0 });
+                 owner: k===0 ? 0 : NEUTRAL, attr: isBomb ? -1 : b[2],
+                 bomb: isBomb, obstacle: isObstacle, blocker: isBlocker, protUntil:0 });
   });
-  // 겹침 풀기 — 레이아웃이 겹쳐도 안전하게 떨어뜨림
-  for (let it=0; it<100; it++){
+  // 겹침 풀기 — 의도된 배치가 과도하게 밀리지 않도록 실제 침범 시에만 최소 보정
+  for (let it=0; it<40; it++){
     let moved = false;
     for (let i=0;i<balls.length;i++) for (let j=i+1;j<balls.length;j++){
       const a=balls[i], c=balls[j];
-      const dx=c.x-a.x, dy=c.y-a.y, d=Math.hypot(dx,dy)||0.01, min=BALL_R*2+4;
+      const dx=c.x-a.x, dy=c.y-a.y, d=Math.hypot(dx,dy)||0.01, min=BALL_R*2;
       if (d < min){ const push=(min-d)/2, nx=dx/d, ny=dy/d;
         a.x-=nx*push; a.y-=ny*push; c.x+=nx*push; c.y+=ny*push; moved=true; }
     }
@@ -977,15 +1151,17 @@ function newGame(){
 
 /* ---------- HUD ---------- */
 function updateHud(){
-  // 🏆 미션(솔로) HUD — 상대·목숨 없음, 남은 공만 표시
+  // 🏆 미션(솔로) HUD — 상대·목숨 없음, 남은 표적 및 별점 표시
   if (solo){
-    const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
-    const maxShots = missionMaxShots(MISSIONS[currentMission]);
+    const m = MISSIONS[currentMission] || {};
+    const targets = missionRemainingTargets();
+    const maxShots = missionMaxShots(m);
     const shotLbl = maxShots < 999 ? ` · ${shotCount}/${maxShots}샷` : '';
-    document.getElementById('round-num').textContent = '🏆 ' + (currentMission+1) + '탄';
-    document.getElementById('balls1').textContent = '내 공 ' + countBalls(0) + ' · 남은 ' + neutral + shotLbl;
+    const stars = getMissionStar(currentMission);
+    document.getElementById('round-num').textContent = `${currentMission+1}탄 · ${m.title||''}`;
+    document.getElementById('balls1').textContent = `내 공 ${countBalls(0)} · 표적 ${targets}개${shotLbl} · ${starString(stars)}`;
     document.getElementById('card1').classList.add('active');
-    document.querySelector('#card1 .pname').textContent = '나';
+    document.querySelector('#card1 .pname').textContent = m.tag ? `[${m.tag}] 나` : '나';
     return;
   }
   const king = gameMode === 'king';
@@ -1007,21 +1183,21 @@ function setMsg(text){
   const el = document.getElementById('turn-msg');
   if (text !== undefined){ el.textContent = text; return; }
   if (solo){
-    const neutral = balls.filter(b => b.owner === NEUTRAL && !b.bomb).length;
-    const maxShots = missionMaxShots(MISSIONS[currentMission]);
-    const shotHint = maxShots < 999 ? ` · 샷 ${shotCount}/${maxShots}` : '';
-    el.innerHTML = `✊ 내 공을 당겨 발사 — 남은 <b style="color:var(--neon)">${neutral}개</b>를 연쇄로 모두 잡으세요${shotHint}!`;
+    const m = MISSIONS[currentMission] || {};
+    const targets = missionRemainingTargets();
+    const maxShots = missionMaxShots(m);
+    const shotHint = maxShots < 999 ? ` · 남은 샷: <b style="color:var(--neon)">${Math.max(0, maxShots - shotCount)}</b>` : '';
+    el.innerHTML = `💡 <b style="color:#fff">${m.title||''}</b>: ${m.desc||''} (표적 <b style="color:var(--neon)">${targets}개</b>${shotHint})`;
     return;
   }
   const p = cur();
-  const bonus = shotCount===1 ? ' <span style="opacity:.6">(후공 보너스: 파워 +20%)</span>' : '';
   if (net){
     el.innerHTML = p === myIdx
-      ? `<span style="color:${OWNER_COLOR[p]}">내 차례</span> — 공을 당겨서 발사하세요${bonus}`
-      : `<span style="color:${OWNER_COLOR[p]}">상대 차례</span> — 기다려 주세요${bonus}`;
+      ? `<span style="color:${OWNER_COLOR[p]}">내 차례</span> — 공을 당겨서 발사하세요`
+      : `<span style="color:${OWNER_COLOR[p]}">상대 차례</span> — 기다려 주세요`;
     return;
   }
-  el.innerHTML = `<span style="color:${OWNER_COLOR[p]}">${OWNER_NAME[p]}</span> 차례 — 내 공을 당겨서 발사하세요` + bonus;
+  el.innerHTML = `<span style="color:${OWNER_COLOR[p]}">${OWNER_NAME[p]}</span> 차례 — 내 공을 당겨서 발사하세요`;
 }
 
 /* ---------- 물리 ---------- */
@@ -1085,15 +1261,12 @@ function physicsStep(){
         b.vx -= rvn*nx; b.vy -= rvn*ny;
         const key = i+'-'+j;
         if (!pairCool.has(key)){
-          pairCool.set(key, 12);
+          pairCool.set(key, 30);            // 쿨다운 충분히 부여하여 연타 방지
           if (a.bomb || b.bomb){            // 💣 폭탄과 충돌 → 폭발 예약
             if (a.bomb) exploding.add(a);
             if (b.bomb) exploding.add(b);
           } else {
             clack(Math.abs(rvn));
-            // 두 공이 다른 편이고 어느 정도 세게 부딪치면 → 슬로모션 클로즈업
-            if (a.owner !== b.owner && Math.abs(rvn) > 1.6)
-              triggerSlowmo((a.x+b.x)/2, (a.y+b.y)/2);
             resolveBattle(a, b, Math.abs(rvn));
           }
         }
@@ -1129,6 +1302,8 @@ function resolveBattle(a, b, impact){
 
   // 👑 킹볼 피격 — 빼앗기지 않고 목숨만 차감, 그 자리에 멈춤(리스폰 없음)
   if (lose.isKing){
+    if (lose.hitThisTurn) return;                // 동일 턴 중복 피격(더블 히트) 방지
+    lose.hitThisTurn = true;
     const p = lose.owner;
     kingLives[p]--;
     onLifeLost(p);
@@ -1218,14 +1393,16 @@ function allStopped(){ return balls.every(b => b.vx===0 && b.vy===0); }
 
 function endShot(){
   shotCount++;
-  // 🏆 미션(솔로): 상대·턴 없음 — 전부 잡으면 클리어, 내 공이 0개면 실패
+  for (const b of balls) b.hitThisTurn = false;
+  // 🏆 미션(솔로): 상대·턴 없음 — 모든 표적을 잡으면 클리어, 내 공이 0개면 실패
   if (solo){
     updateHud();
     if (phase === 'over') return;
-    if (balls.every(b => b.bomb || b.owner === 0)){ gameOver(0, `${currentMission+1}탄 클리어!`); return; }
+    const remaining = missionRemainingTargets();
+    if (remaining === 0 && countBalls(0) > 0){ gameOver(0, `${currentMission+1}탄 클리어!`); return; }
     if (countBalls(0) === 0){ missionFail('내 공을 모두 잃었어요 — 다시 도전!'); return; }
     const maxShots = missionMaxShots(MISSIONS[currentMission]);
-    if (shotCount >= maxShots && balls.some(b => b.owner === NEUTRAL && !b.bomb)){
+    if (shotCount >= maxShots && remaining > 0){
       missionFail('샷 횟수를 모두 사용했어요 — 다시 도전!');
       return;
     }
@@ -1365,8 +1542,7 @@ function aiShoot(){
   let pow = Math.max(1.6, Math.min(MAX_POW, d/100 + 1.4));
   if (positioning) pow = Math.min(pow, 3.2);
   pow *= 1 + (Math.random()-0.5)*cfg.powJitter;                            // 난이도별 힘 오차
-  pow *= (shotCount === 1 ? 1.2 : 1.0);                                    // 후공 첫 샷 보너스
-  pow = Math.max(1.4, Math.min(MAX_POW*1.2, pow));
+  pow = Math.max(1.4, Math.min(MAX_POW, pow));
   selected = a;
   a.vx = Math.cos(ang)*pow; a.vy = Math.sin(ang)*pow;
   blip(90, .1, .15);
@@ -1392,23 +1568,31 @@ function gameOver(winner, detail){
   const t = document.getElementById('end-title');
   // 🏆 미션 결과 (솔로) — 내(0)가 이겼을 때만 클리어
   if (currentMission >= 0 && winner === 0){
-    const last = currentMission === MISSIONS.length - 1;
-    if (currentMission + 1 > missionsCleared()){
-      try{ localStorage.setItem('rps_missions', currentMission + 1); }catch(e){}
+    const stars = calcMissionStars(currentMission, shotCount);
+    saveMissionStar(currentMission, stars);
+    const starEl = document.getElementById('end-stars');
+    if (starEl){
+      starEl.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+      starEl.classList.remove('hidden');
     }
-    t.textContent = last ? '🏆 모든 미션 클리어!' : `🏆 ${currentMission+1}탄 클리어!`;
+    const last = currentMission === MISSIONS.length - 1;
+
+    t.textContent = last ? '🏆 모든 묘수풀이 정복!' : `🏆 ${currentMission+1}탄 클리어!`;
     t.style.color = '#5dff9b';
-    document.getElementById('end-detail').textContent = last
-      ? '축하합니다! 10탄을 모두 깼습니다.'
-      : `${detail} — 다음 미션이 해금되었습니다!`;
+    document.getElementById('end-detail').innerHTML = `${detail} <br><b style="color:var(--neon)">${shotCount}샷 성공 (${starString(stars)})</b>` +
+      (last ? '<br>바둑 묘수풀이 20단계를 모두 완파했습니다!' : '<br>다음 미션이 해금되었습니다!');
     setupMissionEndButtons(true, last);
   } else if (currentMission >= 0){
     // 미션 중 패배 — 클리어로 처리하지 않음 (방어적)
+    const starEl = document.getElementById('end-stars');
+    if (starEl) starEl.classList.add('hidden');
     t.textContent = `😢 ${currentMission+1}탄 실패`;
     t.style.color = '#ff6b6b';
-    document.getElementById('end-detail').textContent = '아쉽게 실패했어요 — 다시 도전!';
+    document.getElementById('end-detail').textContent = '아쉽게 실패했어요 — 묘수 힌트(H)를 확인하고 다시 도전해보세요!';
     setupMissionEndButtons(false, false);
   } else {
+    const starEl = document.getElementById('end-stars');
+    if (starEl) starEl.classList.add('hidden');
     t.textContent = OWNER_NAME[winner] + (net ? (winner === myIdx ? ' (나) 승리!' : ' (상대) 승리!') : ' 승리!');
     t.style.color = OWNER_COLOR[winner];
     document.getElementById('end-detail').textContent = detail;
@@ -1423,10 +1607,12 @@ function missionFail(detail){
   if (phase === 'over') return;
   phase = 'over';
   document.body.classList.remove('danger');
+  const starEl = document.getElementById('end-stars');
+  if (starEl) starEl.classList.add('hidden');
   const t = document.getElementById('end-title');
   t.textContent = `😢 ${currentMission+1}탄 실패`;
   t.style.color = '#ff6b6b';
-  document.getElementById('end-detail').textContent = detail || '내 공을 모두 잃었어요 — 다시 도전!';
+  document.getElementById('end-detail').textContent = (detail || '내 공을 모두 잃었어요') + ' — 묘수 힌트(H)를 참고하세요!';
   setupMissionEndButtons(false, false);
   setTimeout(()=> document.getElementById('end').classList.remove('hidden'), 500);
 }
@@ -1682,8 +1868,9 @@ function forfeitOrder(){
   if (pickState.timer) clearInterval(pickState.timer);
   pickState.timer = null;
   const loser = pickState.who;
-  showOrderReveal(loser === 0 ? -1 : pickState.picks[0],
-                  loser === 1 ? -1 : pickState.picks[1]);
+  const p0 = loser === 0 ? -1 : (pickState.picks[0] ?? 0);
+  const p1 = loser === 1 ? -1 : (pickState.picks[1] ?? 0);
+  showOrderReveal(p0, p1);
 }
 function resolveOrder(winner, detail){
   firstPlayer = winner;
@@ -1724,7 +1911,10 @@ function showOrderReveal(a, b){
   const draw = !bothForfeit && (a === b) && a !== -1;
   let winner = null;
   if (!bothForfeit && !draw){
-    if (a === -1) winner = 1; else if (b === -1) winner = 0;
+    if (a === -1) winner = 1;
+    else if (b === -1) winner = 0;
+    else if (a === null || a === undefined) winner = 1;
+    else if (b === null || b === undefined) winner = 0;
     else winner = beats(a, b) ? 0 : 1;
   }
   const res = document.getElementById('reveal-result');
@@ -1863,8 +2053,7 @@ cv.addEventListener('pointerup', e => {
   const dx = selected.x - dragX, dy = selected.y - dragY;
   const pull = Math.min(Math.hypot(dx,dy), MAX_PULL);
   if (pull < 14) return;                       // 너무 짧으면 취소
-  const bonus = shotCount === 1 ? 1.2 : 1.0;   // 후공 첫 샷 보너스
-  const pow = pull / MAX_PULL * MAX_POW * bonus;
+  const pow = pull / MAX_PULL * MAX_POW;
   const d = Math.hypot(dx,dy);
   selected.vx = dx/d*pow; selected.vy = dy/d*pow;
   if (aimGuideArmed === cur()){               // 🎯 조준선 사용 → 소모
@@ -1878,16 +2067,30 @@ cv.addEventListener('pointerup', e => {
 });
 
 /* ---------- 🎯 조준선 예측 ----------
-   큐볼을 직진시켜 벽·범퍼는 반사, 첫 공과 부딪치는 지점에서
-   타겟 공(법선 방향)과 큐볼(접선 방향)의 예상 진행 방향을 계산한다.
-   물리(physicsStep)와 같은 등질량 탄성 충돌 규칙을 따른다. */
-function computeAimGuide(ball, ux, uy){
+   미션 난이도(티어)에 따라 안내선 길이를 단계적으로 축소:
+   - 1~5탄 (입문): 700px 점선 (쿠션 1회), 화살표 없음
+   - 6~10탄 (중급): 360px 점선 (쿠션 1회), 화살표 없음
+   - 11~15탄 (상급): 120px 미세 조준선 (반사 0회), 화살표 없음
+   - 16~20탄 (마스터): 안내선 완전 비활성화 (0px, 오직 직관과 수읽기)
+   솔로 미션에서는 충돌 시 나오는 화살표를 모두 비활성화합니다. */
+function getSoloAimConfig(mIdx){
+  if (!solo || mIdx < 0) return { maxLen: 1800, maxBounces: 4, showGuide: true, directLen: 220, showArrows: true };
+  if (mIdx < 5)  return { maxLen: 700, maxBounces: 1, showGuide: true, directLen: 180, showArrows: false };
+  if (mIdx < 10) return { maxLen: 360, maxBounces: 1, showGuide: true, directLen: 120, showArrows: false };
+  if (mIdx < 15) return { maxLen: 120, maxBounces: 0, showGuide: true, directLen: 60,  showArrows: false };
+  return { maxLen: 0, maxBounces: 0, showGuide: false, directLen: 0, showArrows: false };
+}
+function computeAimGuide(ball, ux, uy, powerRatio = 1.0){
+  const cfg = getSoloAimConfig(currentMission);
+  if (solo && !cfg.showGuide) return null;
   const r = ballR(ball);
   let px = ball.x, py = ball.y;
   const pts = [{x:px, y:py}];
-  const STEP = 3, MAXLEN = 1600;
+  const STEP = 3;
+  let maxLen = solo ? cfg.maxLen : Math.max(450, Math.min(1800, (powerRatio || 1.0) * 1500));
+  const maxBounces = solo ? cfg.maxBounces : 4;
   let traveled = 0, bounces = 0;
-  while (traveled < MAXLEN){
+  while (traveled < maxLen){
     px += ux*STEP; py += uy*STEP; traveled += STEP;
     // 다른 공과 충돌
     let target = null;
@@ -1918,7 +2121,10 @@ function computeAimGuide(ball, ux, uy){
         const nx = wx/wd*s, ny = wy/wd*s;
         px = q.x + nx*r; py = q.y + ny*r;
         const vn = ux*nx + uy*ny;
-        if (vn < 0){ ux -= 2*vn*nx; uy -= 2*vn*ny; }
+        if (vn < 0){
+          ux -= 2*vn*nx; uy -= 2*vn*ny;
+          maxLen *= 0.94; // 벽 반사 시 6% 감속 반영
+        }
         pts.push({x:px, y:py}); bounced = true; break;
       }
     }
@@ -1935,45 +2141,51 @@ function computeAimGuide(ball, ux, uy){
         }
       }
     }
-    if (bounced && ++bounces > 4) break;
+    if (bounced && ++bounces >= maxBounces) break;
   }
   pts.push({x:px, y:py});
   return { pts, hit:null };
 }
-function drawAimGuide(ball){
+function drawAimGuide(ball, powerRatio){
+  const cfg = getSoloAimConfig(currentMission);
+  if (solo && !cfg.showGuide) return;
   const dx = ball.x - dragX, dy = ball.y - dragY, d = Math.hypot(dx,dy);
   if (d < 1) return;
-  const g = computeAimGuide(ball, dx/d, dy/d);
+  const g = computeAimGuide(ball, dx/d, dy/d, powerRatio);
+  if (!g) return;
   ctx.save();
   // 큐볼 예상 경로(벽 반사 포함)
-  ctx.setLineDash([2,6]);
+  ctx.setLineDash([4,5]);
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.strokeStyle = solo ? 'rgba(255, 235, 120, 0.85)' : 'rgba(255,255,255,.65)';
   ctx.beginPath();
   ctx.moveTo(g.pts[0].x, g.pts[0].y);
   for (let i=1;i<g.pts.length;i++) ctx.lineTo(g.pts[i].x, g.pts[i].y);
   ctx.stroke();
   if (g.hit){
     const h = g.hit;
+    const isObs = solo && h.target && h.target.obstacle;
     // 충돌 지점의 고스트볼
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(h.x, h.y, ballR(ball), 0, 7);
-    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
-    // 타겟 공 예상 방향(굵게)
-    ctx.beginPath();
-    ctx.moveTo(h.target ? h.target.x : h.x, h.target ? h.target.y : h.y);
-    const tlen = 95;
-    ctx.lineTo((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen);
-    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 4; ctx.lineCap='round'; ctx.stroke();
-    drawArrow((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen, h.tx, h.ty, '#ffd166');
-    // 큐볼 분리 방향
-    if (!h.weak){
+    ctx.strokeStyle = isObs ? 'rgba(255, 82, 82, 0.95)' : (solo ? 'rgba(255, 235, 120, 0.95)' : 'rgba(255,255,255,.7)');
+    ctx.lineWidth = 2; ctx.stroke();
+    // 🎯 화살표 렌더링: 솔로 미션에서는 충돌 화살표 완전 제거 (점선만 표시)
+    if (!solo && cfg.showArrows){
       ctx.beginPath();
-      ctx.moveTo(h.x, h.y);
-      ctx.lineTo(h.x + h.cx*70, h.y + h.cy*70);
-      ctx.strokeStyle = OWNER_COLOR[cur()]; ctx.lineWidth = 3; ctx.stroke();
-      drawArrow(h.x + h.cx*70, h.y + h.cy*70, h.cx, h.cy, OWNER_COLOR[cur()]);
+      ctx.moveTo(h.target ? h.target.x : h.x, h.target ? h.target.y : h.y);
+      const tlen = 95;
+      ctx.lineTo((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen);
+      ctx.strokeStyle = isObs ? '#ff5252' : '#ffd166'; ctx.lineWidth = 4; ctx.lineCap='round'; ctx.stroke();
+      drawArrow((h.target ? h.target.x : h.x) + h.tx*tlen, (h.target ? h.target.y : h.y) + h.ty*tlen, h.tx, h.ty, isObs ? '#ff5252' : '#ffd166');
+      if (!h.weak){
+        ctx.beginPath();
+        ctx.moveTo(h.x, h.y);
+        ctx.lineTo(h.x + h.cx*70, h.y + h.cy*70);
+        ctx.strokeStyle = OWNER_COLOR[cur()]; ctx.lineWidth = 3; ctx.stroke();
+        drawArrow(h.x + h.cx*70, h.y + h.cy*70, h.cx, h.cy, OWNER_COLOR[cur()]);
+      }
     }
   }
   ctx.restore();
@@ -2020,20 +2232,6 @@ function draw(){
   ctx.save();
   ctx.translate(_sx, _sy);
 
-  // 슬로모션 클로즈업 — 충돌 지점으로 부드럽게 줌인, 끝나면 원위치로 복귀
-  const _tz = slowmo.t > 0 ? SLOWMO_ZOOM : 1;
-  const _tfx = slowmo.t > 0 ? slowmo.x : CX;
-  const _tfy = slowmo.t > 0 ? slowmo.y : CY;
-  const _ease = (_tz > camZoom) ? 0.08 : 0.05;  // 줌인/복귀 모두 천천히
-  camZoom += (_tz - camZoom) * _ease;
-  camFX += (_tfx - camFX) * 0.08;
-  camFY += (_tfy - camFY) * 0.08;
-  if (camZoom > 1.002){
-    ctx.translate(CX, CY);
-    ctx.scale(camZoom, camZoom);
-    ctx.translate(-camFX, -camFY);
-  }
-
   // 우드 프레임
   tracePoly();
   ctx.save();
@@ -2075,17 +2273,23 @@ function draw(){
     const pull = Math.min(Math.hypot(dx,dy), MAX_PULL);
     if (pull > 14){
       const d = Math.hypot(dx,dy), ux=dx/d, uy=dy/d;
-      // 🎯 조준선 아이템 — 예상 경로/충돌 예측 표시
-      if (aimGuideArmed === cur()) drawAimGuide(selected);
-      ctx.save();
-      ctx.setLineDash([7,8]);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = OWNER_COLOR[cur()];
-      ctx.globalAlpha = .85;
-      ctx.beginPath();
-      ctx.moveTo(selected.x, selected.y);
-      ctx.lineTo(selected.x + ux*pull*1.5, selected.y + uy*pull*1.5);
-      ctx.stroke();
+      const pw = pull / MAX_PULL;
+      const cfg = getSoloAimConfig(currentMission);
+      // 🎯 조준선: 미션(솔로) 모드는 설정에 따라 표시, 대전 모드는 조준선 아이템 사용 시 표시
+      if (aimGuideArmed === cur() || (solo && cfg.showGuide)) drawAimGuide(selected, pw);
+      if (!solo || cfg.directLen > 0){
+        ctx.save();
+        ctx.setLineDash([7,8]);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = OWNER_COLOR[cur()];
+        ctx.globalAlpha = .85;
+        ctx.beginPath();
+        ctx.moveTo(selected.x, selected.y);
+        const directLen = solo ? Math.min(cfg.directLen, pull * 1.5) : pull * 1.5;
+        ctx.lineTo(selected.x + ux*directLen, selected.y + uy*directLen);
+        ctx.stroke();
+        ctx.restore();
+      }
       // 당기는 방향(고무줄)
       ctx.globalAlpha = .3;
       ctx.beginPath();
@@ -2094,7 +2298,6 @@ function draw(){
       ctx.stroke();
       ctx.restore();
       // 파워 게이지
-      const pw = pull / MAX_PULL;
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,.45)';
       ctx.fillRect(selected.x-34, selected.y-BALL_R-26, 68, 9);
@@ -2143,8 +2346,16 @@ function draw(){
     ctx.fillStyle = g; ctx.fill();
     // 소유 컬러 링
     ctx.lineWidth = 4.5;
-    ctx.strokeStyle = OWNER_COLOR[b.owner];
+    ctx.strokeStyle = b.obstacle ? '#ff5252' : OWNER_COLOR[b.owner];
     ctx.stroke();
+    // ⚠️ 미션 장애물/함정 공 — 붉은 경고 점선 링
+    if (b.obstacle){
+      ctx.save();
+      ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.arc(b.x, b.y, r + 4.5, 0, 7);
+      ctx.strokeStyle = 'rgba(255, 82, 82, 0.85)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+    }
     // 속성 아이콘 — 상대 킹볼만 공개 전까지 '?'로 숨김 (내 킹볼은 항상 보임)
     const hideAttr = b.isKing && !b.revealed && b.owner !== _viewer;
     drawIcon(hideAttr ? '?' : (b.attr >= 0 ? ATTR_ICON[b.attr] : '?'),
@@ -2190,27 +2401,12 @@ function draw(){
   ctx.stroke();
 
   ctx.restore(); // 화면 흔들림 해제
-
-  // 슬로모션 시네마틱 비네트 — 줌 세기에 비례해 가장자리를 어둡게
-  const _vig = Math.min(1, (camZoom - 1) / (SLOWMO_ZOOM - 1));
-  if (_vig > 0.01){
-    const vg = ctx.createRadialGradient(CX,CY,Math.min(W,H)*0.22, CX,CY,Math.max(W,H)*0.62);
-    vg.addColorStop(0,'rgba(0,0,0,0)');
-    vg.addColorStop(1,`rgba(0,0,0,${0.6*_vig})`);
-    ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
-  }
 }
 
 /* ---------- 메인 루프 ---------- */
 function loop(){
   if (phase === 'moving'){
-    let steps = 2;                          // 서브스텝 2회로 터널링 완화
-    if (slowmo.t > 0){                       // 슬로모션 중엔 물리를 느리게
-      physAccum += 2 * SLOWMO_SCALE;
-      steps = Math.floor(physAccum);
-      physAccum -= steps;
-    } else physAccum = 0;
-    for (let s=0;s<steps;s++) physicsStep();
+    for (let s=0;s<2;s++) physicsStep();
     if (allStopped() && phase === 'moving'){
       if (net && remoteShotActive){
         // 상대 샷: 내 시뮬은 참고용 — 상대가 보낸 스냅샷으로 확정
@@ -2220,8 +2416,6 @@ function loop(){
   } else if (phase === 'aim' || phase === 'pick' || phase === 'over'){
     physicsStepIdle();
   }
-  if (slowmo.t > 0) slowmo.t--;
-  if (slowmoCool > 0) slowmoCool--;
   updateItemBtns();
   draw();
   requestAnimationFrame(loop);
@@ -2494,6 +2688,7 @@ function returnToSetup(){
   $id('rules').classList.add('hidden');
   $id('end').classList.add('hidden');
   $id('pick').classList.add('hidden');
+  const hm = $id('hint-modal'); if (hm) hm.classList.add('hidden');
   $id('setup').classList.remove('hidden');
   phase = 'setup';
   if (net){
@@ -2518,8 +2713,29 @@ function makeCode(){
   for (let i=0;i<5;i++) s += A[Math.floor(Math.random()*A.length)];
   return s;
 }
+function ensurePeer(cb){
+  if (typeof Peer !== 'undefined') return cb(true);
+  setNetStatus('네트워크 라이브러리 불러오는 중...');
+  const s = document.createElement('script');
+  s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+  s.onload = () => cb(true);
+  s.onerror = () => {
+    const s2 = document.createElement('script');
+    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
+    s2.onload = () => cb(true);
+    s2.onerror = () => {
+      setNetStatus('⚠️ 네트워크 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+      cb(false);
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+}
 function startHost(){
-  if (typeof Peer === 'undefined'){ setNetStatus('⚠️ 네트워크 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)'); return; }
+  if (typeof Peer === 'undefined'){
+    ensurePeer(ok => { if (ok) startHost(); });
+    return;
+  }
   const code = makeCode();
   $id('room-code').textContent = code;
   setNetStatus('서버에 연결하는 중...');
@@ -2542,7 +2758,10 @@ function startHost(){
   });
 }
 function joinRoom(){
-  if (typeof Peer === 'undefined'){ setNetStatus('⚠️ 네트워크 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)'); return; }
+  if (typeof Peer === 'undefined'){
+    ensurePeer(ok => { if (ok) joinRoom(); });
+    return;
+  }
   const code = $id('join-code').value.trim().toUpperCase();
   if (code.length !== 5){ setNetStatus('5자리 방 코드를 입력하세요'); return; }
   if (peer){ try{ peer.destroy(); }catch(e){} }
@@ -2571,72 +2790,175 @@ function joinRoom(){
 function showMainMenu(){
   solo = false;
   document.body.classList.remove('solo');
-  $id('menu-config').classList.add('hidden');
-  $id('menu-main').classList.remove('hidden');
+  const cf = $id('menu-config'); if (cf) cf.classList.add('hidden');
+  const mm = $id('menu-main'); if (mm) mm.classList.remove('hidden');
 }
 function enterSingle(){
-  teardownNet();
+  try{ teardownNet(); }catch(e){ console.warn(e); }
   vsAI = true; netMode = 'ai'; currentMission = -1; solo = false;
   document.body.classList.remove('solo');
-  setNetNames();
-  $id('config-title').textContent = '🤖 싱글플레이';
-  $id('multi-controls').classList.add('hidden');
-  $id('single-tabs').classList.remove('hidden');
-  setSingleTab('free');
-  $id('menu-main').classList.add('hidden');
-  $id('menu-config').classList.remove('hidden');
+  try{ setNetNames(); }catch(e){}
+  const ct = $id('config-title'); if (ct) ct.textContent = '🤖 싱글플레이';
+  const mc = $id('multi-controls'); if (mc) mc.classList.add('hidden');
+  const st = $id('single-tabs'); if (st) st.classList.remove('hidden');
+  try{ setSingleTab('free'); }catch(e){ console.warn(e); }
+  const mm = $id('menu-main'); if (mm) mm.classList.add('hidden');
+  const cf = $id('menu-config'); if (cf) cf.classList.remove('hidden');
 }
 function setSingleTab(tab){
   singleTab = tab;
   document.querySelectorAll('#single-tabs .tab-btn').forEach(b => b.classList.toggle('sel', b.dataset.tab === tab));
   const mission = tab === 'mission';
-  $id('mission-panel').classList.toggle('hidden', !mission);
-  $id('play-config').classList.toggle('hidden', mission);
-  $id('ai-panel').classList.toggle('hidden', mission);   // 자유 대전일 때만 난이도
+  const mp = $id('mission-panel'); if (mp) mp.classList.toggle('hidden', !mission);
+  const pc = $id('play-config'); if (pc) pc.classList.toggle('hidden', mission);
+  const ap = $id('ai-panel'); if (ap) ap.classList.toggle('hidden', mission);   // 자유 대전일 때만 난이도
   if (mission) renderMissions();
 }
 function renderMissions(){
   const cleared = missionsCleared();
+  const totalStars = getTotalStars();
+  const totalMissions = MISSIONS.length;
+
+  // 헤더 통계 갱신
+  const pTxt = $id('mp-progress-txt');
+  if (pTxt) pTxt.textContent = `달성도: ${cleared} / ${totalMissions}`;
+  const sTxt = $id('mp-total-stars');
+  if (sTxt) sTxt.textContent = `⭐ ${totalStars} / ${totalMissions * 3}`;
+  const bar = $id('mp-bar-fill');
+  if (bar) bar.style.width = `${Math.min(100, (cleared / totalMissions * 100)).toFixed(1)}%`;
+
+  // 티어 탭 상태 갱신
+  document.querySelectorAll('#tier-tabs .tier-tab').forEach(b => {
+    b.classList.toggle('sel', (b.dataset.tier === 'all' && activeTier === 'all') || (+b.dataset.tier === activeTier));
+  });
+
   const grid = $id('mission-grid');
-  grid.innerHTML = MISSIONS.map((m,i) => {
+  if (!grid) return;
+
+  grid.innerHTML = MISSIONS.map((m, i) => {
+    if (activeTier !== 'all' && m.tier !== activeTier) return '';
     const locked = i > cleared, done = i < cleared;
+    const stars = getMissionStar(i);
     return `<button class="mission-btn${locked?' locked':''}${done?' done':''}" data-m="${i}" ${locked?'disabled':''}>
-      <b>${i+1}탄 · ${m.title||''}</b><small>공 ${m.balls.length}개 · ${m.desc}</small>
-      <span class="m-state">${done?'✅':locked?'🔒':'▶️'}</span></button>`;
+      <div class="m-top">
+        <span class="m-num">STAGE ${i+1}</span>
+        <span class="m-tag">${m.tag || '미션'}</span>
+      </div>
+      <div class="m-title">${m.title}</div>
+      <div class="m-desc">${m.desc}</div>
+      <div class="m-bottom">
+        <span class="m-stars">${starString(stars)}</span>
+        <span class="m-shots">${m.maxShots ? m.maxShots + '샷 이하' : '자유'}</span>
+      </div>
+    </button>`;
   }).join('');
+
   grid.querySelectorAll('.mission-btn:not(.locked)').forEach(btn =>
     btn.addEventListener('click', () => startMission(+btn.dataset.m)));
+}
+function showMissionHint(){
+  if (!solo || currentMission < 0) return;
+  const m = MISSIONS[currentMission];
+  if (!m) return;
+  const nm = $id('hint-stage-name'); if (nm) nm.textContent = `${currentMission+1}탄 · ${m.title}`;
+  const tg = $id('hint-stage-tag'); if (tg) tg.textContent = m.tag || '묘수 힌트';
+  const bd = $id('hint-stage-body'); if (bd) bd.textContent = m.hint || m.desc;
+  const hm = $id('hint-modal'); if (hm) hm.classList.remove('hidden');
+}
+function hideMissionHint(){
+  const hm = $id('hint-modal'); if (hm) hm.classList.add('hidden');
 }
 function startMission(i){
   currentMission = i;
   solo = true; vsAI = false; netMode = '';
   gameMode = 'normal'; mapKey = MISSIONS[i].map || 'rect';
-  $id('setup').classList.add('hidden');
+  const su = $id('setup'); if (su) su.classList.add('hidden');
   newGame();
 }
 function enterMulti(){
   vsAI = false; netMode = ''; currentMission = -1; solo = false;
   document.body.classList.remove('solo');
-  setNetNames();
-  $id('config-title').textContent = '👥 멀티플레이';
-  $id('single-tabs').classList.add('hidden');
-  $id('mission-panel').classList.add('hidden');
-  $id('play-config').classList.remove('hidden');
-  $id('ai-panel').classList.add('hidden');
-  $id('multi-controls').classList.remove('hidden');
+  try{ setNetNames(); }catch(e){}
+  const ct = $id('config-title'); if (ct) ct.textContent = '👥 멀티플레이';
+  const st = $id('single-tabs'); if (st) st.classList.add('hidden');
+  const mp = $id('mission-panel'); if (mp) mp.classList.add('hidden');
+  const pc = $id('play-config'); if (pc) pc.classList.remove('hidden');
+  const ap = $id('ai-panel'); if (ap) ap.classList.add('hidden');
+  const mc = $id('multi-controls'); if (mc) mc.classList.remove('hidden');
   document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('sel'));
-  $id('net-panel').classList.add('hidden');
-  setNetStatus('');
-  $id('menu-main').classList.add('hidden');
-  $id('menu-config').classList.remove('hidden');
+  const np = $id('net-panel'); if (np) np.classList.add('hidden');
+  try{ setNetStatus(''); }catch(e){}
+  const mm = $id('menu-main'); if (mm) mm.classList.add('hidden');
+  const cf = $id('menu-config'); if (cf) cf.classList.remove('hidden');
 }
-$id('btn-single').addEventListener('click', enterSingle);
-$id('btn-multi').addEventListener('click', enterMulti);
+
+// 글로벌 노출 및 부트스트랩 연동
+window._gameEnterSingle = enterSingle;
+window._gameEnterMulti = enterMulti;
+window._gameShowMainMenu = showMainMenu;
+window.enterSingle = enterSingle;
+window.enterMulti = enterMulti;
+window.showMainMenu = showMainMenu;
+window.setSingleTab = setSingleTab;
+window.startMission = startMission;
+window.showMissionHint = showMissionHint;
+window.hideMissionHint = hideMissionHint;
+window.showRules = () => { const r = $id('rules'); if (r) r.classList.remove('hidden'); };
+window.hideRules = () => { const r = $id('rules'); if (r) r.classList.add('hidden'); };
+
+const bSingle = $id('btn-single'); if (bSingle) bSingle.addEventListener('click', enterSingle);
+const bMulti = $id('btn-multi'); if (bMulti) bMulti.addEventListener('click', enterMulti);
 document.querySelectorAll('#single-tabs .tab-btn').forEach(btn =>
   btn.addEventListener('click', () => setSingleTab(btn.dataset.tab)));
-$id('btn-back').addEventListener('click', () => { vsAI = false; netMode = ''; currentMission = -1; teardownNet(); setNetStatus(''); showMainMenu(); });
-$id('btn-rules').addEventListener('click', () => $id('rules').classList.remove('hidden'));
-$id('rules-close').addEventListener('click', () => $id('rules').classList.add('hidden'));
+const bBack = $id('btn-back'); if (bBack) bBack.addEventListener('click', () => { vsAI = false; netMode = ''; currentMission = -1; teardownNet(); setNetStatus(''); showMainMenu(); });
+const bRules = $id('btn-rules'); if (bRules) bRules.addEventListener('click', () => { const r = $id('rules'); if (r) r.classList.remove('hidden'); });
+const rClose = $id('rules-close'); if (rClose) rClose.addEventListener('click', () => { const r = $id('rules'); if (r) r.classList.add('hidden'); });
+
+// 티어 탭 이벤트
+document.querySelectorAll('#tier-tabs .tier-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeTier = btn.dataset.tier === 'all' ? 'all' : +btn.dataset.tier;
+    renderMissions();
+  });
+});
+
+// 미션 HUD 퀵 액션
+const qRestart = $id('mquick-restart');
+if (qRestart) qRestart.addEventListener('click', () => { if (solo && currentMission >= 0) startMission(currentMission); });
+const qHint = $id('mquick-hint');
+if (qHint) qHint.addEventListener('click', showMissionHint);
+const qList = $id('mquick-list');
+if (qList) qList.addEventListener('click', () => { if (solo) returnToSetup(); });
+
+const hClose = $id('hint-close-btn');
+if (hClose) hClose.addEventListener('click', hideMissionHint);
+
+// 단축키 (R: 재시도, H: 힌트, M/Esc: 목록/닫기)
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'r' || e.key === 'R'){
+    if (solo && currentMission >= 0 && phase !== 'setup'){
+      startMission(currentMission);
+    }
+  } else if (e.key === 'h' || e.key === 'H'){
+    if (solo && currentMission >= 0 && phase !== 'setup'){
+      const hm = $id('hint-modal');
+      if (hm && !hm.classList.contains('hidden')) hideMissionHint();
+      else showMissionHint();
+    }
+  } else if (e.key === 'm' || e.key === 'M'){
+    if (solo && currentMission >= 0 && phase !== 'setup'){
+      returnToSetup();
+    }
+  } else if (e.key === 'Escape'){
+    const hm = $id('hint-modal');
+    if (hm && !hm.classList.contains('hidden')){
+      hideMissionHint();
+    } else if (solo && phase !== 'setup'){
+      returnToSetup();
+    }
+  }
+});
 
 /* ---------- 네트워크 UI (방 만들기 / 참가) ---------- */
 document.querySelectorAll('.net-btn').forEach(btn => btn.addEventListener('click', () => {
@@ -2655,9 +2977,73 @@ document.querySelectorAll('#ai-row .mode-btn').forEach(btn => btn.addEventListen
   document.querySelectorAll('#ai-row .mode-btn').forEach(b => b.classList.toggle('sel', b === btn));
   aiLevel = btn.dataset.ai;
 }));
-$id('join-btn').addEventListener('click', joinRoom);
-$id('join-code').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
+const jBtn = $id('join-btn'); if (jBtn) jBtn.addEventListener('click', joinRoom);
+const jCode = $id('join-code'); if (jCode) jCode.addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
 
+// STUDIO BEGIN
+// Embedded into each game's existing closure by tools/build-studio.py.
+const studies = [
+  ['상성을 읽는 첫 수',0,'상성 읽기',1,[[-200,0,0],[40,0,1]],'묵으로 찌 하나를 내 편으로 만드세요.','묵이 이기는 상대를 찾아보세요.','오른쪽 찌를 향해 곧게 쏘세요.','묵은 찌를 이깁니다. 방향을 먼저 정하고 필요한 만큼만 힘을 주세요.'],
+  ['보의 쓰임',0,'상성 읽기',1,[[-180,60,2],[60,-40,0]],'보로 묵을 차지하세요.','보가 이기는 것은 무엇일까요?','오른쪽 위 묵으로 조준하세요.','보는 묵을 이깁니다. 공의 모양을 읽으면 공격 방향이 보입니다.'],
+  ['이어지는 한 수',1,'연결',1,[[-220,0,0],[-40,0,1],[120,0,2]],'한 수 안에 두 표적을 모두 내 편으로 만드세요.','내 공이 직접 모든 표적을 이겨야 할까요?','묵 → 찌 → 빠 순으로 힘이 전달되게 직선으로 쏘세요.','먼저 얻은 찌가 빠를 얻습니다. 소유권은 바뀌어도 공의 상성은 유지됩니다.'],
+  ['한 바퀴의 상성',1,'연결',1,[[-240,0,0],[-90,0,1],[40,0,2],[170,0,0]],'한 수로 세 표적을 연결하세요.','각 공이 바로 다음 공을 이길 수 있습니다.','오른쪽으로 충분히 당겨 묵 → 찌 → 빠 → 묵을 연결하세요.','첫 공의 힘이 이어지며 세 상성이 순환합니다. 끝까지 닿을 힘이 필요합니다.'],
+  ['얻은 공이 다음 수',2,'수순',2,[[-220,-70,0],[-40,-70,1],[160,80,2]],'두 수 안에 찌와 빠를 모두 얻으세요.','첫 수 뒤에는 쏠 수 있는 공이 늘어납니다.','찌를 얻은 뒤, 두 번째 수는 그 찌로 빠를 노리세요.','첫 수는 다음 공격 수단을 만드는 수입니다. 얻은 찌를 선택해 빠를 공략할 수 있습니다.'],
+  ['빠에서 시작하기',2,'수순',2,[[-220,70,2],[-40,70,0],[160,-80,1]],'두 수 안에 묵과 찌를 모두 얻으세요.','빠로 찌를 직접 치면 어떻게 될까요?','먼저 묵을 얻고, 얻은 묵으로 찌를 노리세요.','빠 → 묵 → 찌의 순서가 핵심입니다. 첫 수에서 다음 수에 쓸 공을 확보합니다.'],
+  ['막힌 길의 바깥',3,'우회',2,[[-200,0,0],[0,0,2,false,true],[200,0,1]],'함정 빠를 피해 찌를 얻으세요. 두 수까지 가능합니다.','붉은 테두리의 빠는 목표가 아닌 함정입니다.','위나 아래 쿠션으로 우회하세요. 첫 수로 안전한 위치를 잡아도 됩니다.','직선의 짧은 길보다 상성상 안전한 길을 읽는 것이 중요합니다. 쿠션도 공격 경로입니다.'],
+  ['좁은 틈의 판단',3,'우회',2,[[-220,0,0],[-20,65,2,false,true],[-20,-65,2,false,true],[180,0,1]],'두 함정 사이로 찌를 얻으세요.','공의 중심뿐 아니라 공의 두께도 보세요.','두 빠 사이 중앙의 수평 경로를 노리세요.','불필요하게 쿠션을 쓰지 않아도 됩니다. 열린 길과 막힌 길을 구별하는 것이 묘수의 출발점입니다.']
+];
+MISSIONS.splice(0, MISSIONS.length, ...studies.map(([title,tier,tag,maxShots,balls,desc,question,hint,review]) => ({title,tier,tag,maxShots,balls,desc,question,hint,review,map:'rect'})));
+let studyHints = 0, studyUndos = 0, studyHistory = [];
+// A new edition has separate progress; old mission records remain intact.
+missionsCleared = function(){ return MISSIONS.filter((_,i)=>getMissionStar(i)>0).length; };
+getMissionStar = function(i){try{return Math.min(3,Math.max(0,Number(JSON.parse(localStorage.getItem('rps_studies_v2')||'{}')[i])||0));}catch{return 0;}};
+saveMissionStar = function(i,s){try{const p=JSON.parse(localStorage.getItem('rps_studies_v2')||'{}');p[i]=Math.max(getMissionStar(i),s);localStorage.setItem('rps_studies_v2',JSON.stringify(p));}catch{}};
+getTotalStars = () => MISSIONS.reduce((s,_,i)=>s+getMissionStar(i),0);
+calcMissionStars = () => studyHints >= 2 ? 1 : studyHints || studyUndos ? 2 : 3;
+const studioMain = document.getElementById('menu-main');
+studioMain.insertAdjacentHTML('afterbegin','<div class="studio-intro"><strong>작은 판 위에서, 최선의 한 수.</strong>상성을 읽고, 공을 연결하고, 다음 수를 준비하세요.</div><button class="big-btn" id="open-studies">묘수풀이 시작하기 →</button>');
+document.getElementById('open-studies').onclick=()=>{enterSingle();setSingleTab('mission');};
+document.querySelector('.sub').textContent='묵 · 찌 · 빠의 상성으로 풀어가는 한 판';
+document.querySelector('#btn-single small').textContent='난이도를 골라 컴퓨터와 연습';
+document.querySelector('#btn-single b').textContent='자유 대전';
+document.querySelector('[data-tab="mission"]').textContent='묘수 문제집';
+document.querySelectorAll('#tier-tabs [data-tier]').forEach((b,i)=>b.textContent=['전체','기초 · 상성','연결 · 연쇄','수순 · 두 수','응용 · 우회'][i]);
+document.getElementById('mission-panel').insertAdjacentHTML('afterbegin','<div class="studio-intro"><strong>한 문제, 하나의 발견</strong>파란 공은 내 공 · 회색은 목표 · 붉은 테두리는 함정<br>★★★ 스스로 해결 · ★★ 힌트 또는 되돌리기 · ★ 수순 힌트 사용<br>모든 문제를 자유롭게 선택할 수 있습니다.</div>');
+document.getElementById('turn-msg').insertAdjacentHTML('afterend','<div id="study-status" role="status"></div>');
+document.getElementById('mission-quick-bar').insertAdjacentHTML('afterbegin','<button class="mquick-btn" id="study-undo" type="button">↶ <span class="mq-txt">한 수 되돌리기</span></button>');
+function studyPreview(m){return `<svg class="position-preview" viewBox="-460 -240 920 480" aria-hidden="true"><rect x="-440" y="-220" width="880" height="440" rx="56" fill="#173a2a" stroke="#759365" stroke-width="6"/>${m.balls.map((b,i)=>`<circle cx="${b[0]}" cy="${b[1]}" r="27" fill="${i===0?'#4bacc9':'#b3bdb0'}" stroke="${b[4]?'#ef8f7e':'#e3eed8'}" stroke-width="5"/><text x="${b[0]}" y="${b[1]+10}" text-anchor="middle" font-size="28" fill="#101b18">${['묵','찌','빠'][b[2]]}</text>`).join('')}</svg>`;}
+renderMissions = function(){
+  document.getElementById('mp-progress-txt').textContent=`해결 ${missionsCleared()} / ${MISSIONS.length}`;
+  document.getElementById('mp-total-stars').textContent=`★ ${getTotalStars()} / ${MISSIONS.length*3}`;
+  document.getElementById('mp-bar-fill').style.width=`${missionsCleared()/MISSIONS.length*100}%`;
+  document.querySelectorAll('#tier-tabs .tier-tab').forEach(b=>b.classList.toggle('sel',String(activeTier)===b.dataset.tier));
+  const grid=document.getElementById('mission-grid');
+  grid.innerHTML=MISSIONS.map((m,i)=>activeTier!=='all'&&m.tier!==activeTier?'':`<button class="mission-btn" data-m="${i}"><div class="m-top"><span class="m-num">문제 ${String(i+1).padStart(2,'0')}</span><span class="m-tag">${m.tag} · ${m.maxShots}수</span></div>${studyPreview(m)}<div class="m-title">${m.title}</div><div class="m-desc">${m.desc}</div><div class="m-bottom"><span class="m-stars">${starString(getMissionStar(i))}</span><span>${getMissionStar(i)?'다시 풀기 ↗':'풀어보기 →'}</span></div></button>`).join('');
+  grid.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>startMission(+b.dataset.m));
+};
+function studyStatus(){if(!solo||currentMission<0)return;const m=MISSIONS[currentMission];document.getElementById('study-status').textContent=`${m.desc} · 남은 수 ${Math.max(0,m.maxShots-shotCount)} · 남은 목표 ${missionRemainingTargets()}`;document.getElementById('study-undo').disabled=!studyHistory.length||phase==='moving';}
+const studioStart=startMission;
+startMission=function(i){if(!MISSIONS[i])return;studyHints=0;studyUndos=0;studyHistory=[];hideMissionHint();document.getElementById('end').classList.add('hidden');studioStart(i);studyStatus();};
+window.startMission=startMission;
+const studioAimConfig=getSoloAimConfig;
+getSoloAimConfig=function(i){return solo?{maxLen:700,maxBounces:1,showGuide:true,directLen:180,showArrows:false}:studioAimConfig(i);};
+const studioHud=updateHud;
+updateHud=function(){studioHud();studyStatus();};
+cv.addEventListener('pointerup',()=>{if(solo&&phase==='aim'&&dragging&&selected&&Math.hypot(selected.x-dragX,selected.y-dragY)>=14){const snapshot={balls:balls.map(b=>({...b})),shotCount};queueMicrotask(()=>{if(phase==='moving'){studyHistory.push(snapshot);studyStatus();}});}},true);
+document.getElementById('study-undo').onclick=()=>{if(!solo||phase==='moving'||!studyHistory.length||(phase==='over'&&document.getElementById('end').classList.contains('hidden')))return;const s=studyHistory.pop();balls=s.balls.map(b=>({...b}));shotCount=s.shotCount;studyUndos++;pairCool.clear();particles=[];selected=null;dragging=false;phase='aim';document.getElementById('end').classList.add('hidden');beginTurn();updateHud();};
+showMissionHint=function(){if(!solo||currentMission<0)return;const m=MISSIONS[currentMission];studyHints=Math.max(studyHints,1);document.getElementById('hint-stage-name').textContent=m.title;document.getElementById('hint-stage-tag').textContent=studyHints>1?'2단계 · 수순':'1단계 · 생각의 실마리';document.getElementById('hint-stage-body').textContent=studyHints>1?m.question+'\n\n'+m.hint:m.question;document.getElementById('hint-modal').classList.remove('hidden');document.getElementById('study-more-hint').hidden=studyHints>1;};
+window.showMissionHint=showMissionHint;
+// Existing listeners captured the old function, so replace their handler nodes.
+const oldHint=document.getElementById('mquick-hint'), newHint=oldHint.cloneNode(true);oldHint.replaceWith(newHint);newHint.onclick=showMissionHint;
+document.getElementById('hint-close-btn').insertAdjacentHTML('beforebegin','<button class="ghost-btn" id="study-more-hint">수순 힌트 보기 · 별 1개로 기록</button>');
+document.getElementById('study-more-hint').onclick=()=>{studyHints=2;showMissionHint();};
+const studioEnd=setupMissionEndButtons;
+setupMissionEndButtons=function(won,last){studioEnd(won,last);document.querySelectorAll('.study-review').forEach(e=>e.remove());document.getElementById('end-detail').insertAdjacentHTML('afterend',`<div class="study-review"><b>${won?'이 수의 의미':'다시 읽어볼 자리'}</b><br>${won?MISSIONS[currentMission].review:MISSIONS[currentMission].question}</div>`);if(won)document.getElementById('end-detail').textContent=`${shotCount}수로 해결 · ${starString(calcMissionStars())} · ${studyHints?'힌트 사용':'수순 힌트 없이 해결'}${studyUndos?' · 되돌리기 사용':''}`;};
+document.querySelectorAll('.tab-btn,.mode-btn,.map-btn,.net-btn').forEach(el=>{el.tabIndex=0;el.setAttribute('role','button');el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}});});
+const studioResult=setupMissionEndButtons;
+setupMissionEndButtons=function(won,last){studioResult(won,last);if(won){document.getElementById('end-title').textContent=missionsCleared()===MISSIONS.length?'모든 묘수풀이 해결!':`${currentMission+1}번 문제 해결`;if(last)document.getElementById('restart-btn').textContent='문제집으로';}};
+
+// STUDIO END
 loop();
 })();
 </script>

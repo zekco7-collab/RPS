@@ -1,0 +1,27 @@
+:root{--paper:#e9ede5;--neon:#cce7a0;--neon-glow:rgba(204,231,160,.15)}
+body{background:#101b18;color:var(--paper)}
+.overlay{background:rgba(9,18,15,.94);overflow-y:auto;touch-action:pan-y;padding:24px 16px}
+.panel{background:#182822;border:1px solid #3a4d41;border-radius:24px;box-shadow:0 24px 80px #0005;width:min(940px,96vw);max-height:90dvh;overflow-y:auto;padding:32px}
+.neon-title{color:#e5eedc;text-shadow:none;letter-spacing:-2px;font-size:clamp(30px,5vw,48px)}
+.sub{color:#aabbaa;line-height:1.7;margin:12px 0 28px}
+button{touch-action:manipulation}
+button:focus-visible,[tabindex]:focus-visible{outline:3px solid #cce7a0;outline-offset:4px}
+.menu-cards{gap:14px}.menu-card{background:#21372b;border:1px solid #52634b;box-shadow:none;border-radius:16px;min-height:130px}
+.menu-card:hover,.mission-btn:hover{background:#2c4434;transform:translateY(-2px)}
+.menu-card small{line-height:1.6;color:#bac8b7}
+.big-btn{background:#cce7a0;color:#182419;box-shadow:none;border-radius:12px}
+.ghost-btn,.back-btn,.mquick-btn{border-color:#53654f;border-radius:10px}
+#single-tabs{margin-top:18px}.tab-btn,.tier-tab{min-height:44px}.tier-tabs{flex-wrap:wrap;overflow:visible}.tab-btn.sel,.tier-tab.sel{box-shadow:none}
+#mission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-height:none;overflow:visible}
+.mission-btn{background:#203329;border:1px solid #455d48;border-radius:16px;text-align:left;padding:18px;box-shadow:none}
+.m-title{font-size:20px;margin:12px 0 6px;color:#edf2e7}.m-desc{min-height:44px;color:#bbc9b9;line-height:1.6}
+.m-tag{color:#cee3b3;background:#314b36}.m-num{color:#aabc9f;letter-spacing:1px}
+.position-preview{width:100%;height:105px;margin:12px 0;background:#12271f;border:1px solid #415c44;border-radius:10px}
+.studio-intro{text-align:left;margin:20px 0;line-height:1.8;color:#b7c9b4}.studio-intro strong{display:block;color:#e6eddf;font-size:20px}
+#study-status{width:min(96vw,980px);padding:10px 16px;border-left:3px solid #cce7a0;background:#21372b;font-size:14px;line-height:1.6}
+body:not(.solo) #study-status{display:none}
+#mission-quick-bar{flex-wrap:wrap}.player-card{box-shadow:none;backdrop-filter:none}.player-card.active{box-shadow:none}
+#hint{color:#b7c9b4}#hint-stage-body{white-space:pre-line;line-height:1.9}
+.hint-panel{max-width:580px}.study-review{margin-top:16px;padding:16px;background:#22372b;border-radius:12px;text-align:left;line-height:1.8;color:#d1dec7}
+@media(max-width:600px){.overlay{padding:12px}.panel{padding:20px 16px;border-radius:18px;max-height:94dvh}#mission-grid{grid-template-columns:1fr}.menu-cards{flex-wrap:wrap}.menu-card{min-width:120px}.position-preview{height:92px}#hud{gap:5px}.mquick-btn{min-height:44px}.mquick-btn .mq-txt{display:inline;font-size:11px}#study-status{font-size:12px;padding:7px 12px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

@@ -1,1 +1,4 @@
 .mobtest/
+node_modules/
+studio-desktop.png
+studio-mobile.png

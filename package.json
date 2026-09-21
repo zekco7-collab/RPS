@@ -1,0 +1,11 @@
+{
+  "name": "rps-billiards",
+  "private": true,
+  "scripts": {
+    "build:studio": "python tools/build-studio.py",
+    "test": "node tools/check-studio.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
